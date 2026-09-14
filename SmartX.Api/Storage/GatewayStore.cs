@@ -30,6 +30,7 @@ public sealed class GatewayStore
     {
         lock (_gate)
         {
+            RefreshFreshnessLocked();
             return Sensors.ToList();
         }
     }
@@ -104,6 +105,7 @@ public sealed class GatewayStore
             buffer.Add(packet);
             device.LastSeenAt = packet.Timestamp == default ? DateTimeOffset.UtcNow : packet.Timestamp;
             device.Health = classify(packet.Payload, device);
+            device.Freshness = TelemetryFreshnessClassifier.Classify(device.LastSeenAt, DateTimeOffset.UtcNow);
             error = null;
             return true;
         }
@@ -113,8 +115,23 @@ public sealed class GatewayStore
     {
         lock (_gate)
         {
-            return Sensors.FirstOrDefault(sensor =>
+            var device = Sensors.FirstOrDefault(sensor =>
                 string.Equals(sensor.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (device is not null)
+            {
+                device.Freshness = TelemetryFreshnessClassifier.Classify(device.LastSeenAt, DateTimeOffset.UtcNow);
+            }
+
+            return device;
+        }
+    }
+
+    private void RefreshFreshnessLocked()
+    {
+        var now = DateTimeOffset.UtcNow;
+        foreach (var sensor in Sensors)
+        {
+            sensor.Freshness = TelemetryFreshnessClassifier.Classify(sensor.LastSeenAt, now);
         }
     }
 
