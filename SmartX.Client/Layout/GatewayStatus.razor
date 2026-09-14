@@ -1,0 +1,46 @@
+@inject HttpClient Http
+@inject IConfiguration Config
+
+@* Status strip: async GET to the gateway so operators see fleet health without opening telemetry. *@
+
+<div class="gateway-status" role="status">
+    <div class="status-block">
+        <span class="status-label">API</span>
+        <span class="status-value">@ApiHost</span>
+    </div>
+    <div class="status-block">
+        <span class="status-label">Gateway</span>
+        <span class="status-value @(online ? "is-online" : "is-offline")">@message</span>
+    </div>
+</div>
+
+@code {
+    private string message = "Checking…";
+    private bool online;
+
+    private string ApiHost => Config["ApiBaseUrl"] ?? "(not configured)";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var summary = await Http.GetFromJsonAsync<FleetSummaryResponse>("api/sensors/summary");
+            if (summary is null)
+            {
+                message = "Empty response";
+                return;
+            }
+
+            online = true;
+            message = $"Online · {summary.DeviceCount} devices · {summary.ExceptionCount} exceptions";
+        }
+        catch (HttpRequestException)
+        {
+            message = "Unreachable — start SmartX.Api";
+        }
+        catch (Exception)
+        {
+            message = "Unreachable";
+        }
+    }
+}

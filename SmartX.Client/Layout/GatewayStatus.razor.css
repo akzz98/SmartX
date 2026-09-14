@@ -1,0 +1,34 @@
+.gateway-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    align-items: baseline;
+    font-size: 0.8rem;
+}
+
+.status-block {
+    display: flex;
+    gap: 0.4rem;
+    align-items: baseline;
+}
+
+.status-label {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #6b7380;
+}
+
+.status-value {
+    font-variant-numeric: tabular-nums;
+    color: #1f2933;
+}
+
+.is-online {
+    color: #0f7b3a;
+}
+
+.is-offline {
+    color: #b42318;
+}

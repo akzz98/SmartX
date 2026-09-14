@@ -7,12 +7,30 @@
     </div>
 </div>
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="nav flex-column">
+<div class="@NavMenuCssClass nav-scrollable">
+    <nav class="nav flex-column" aria-label="Operator navigation">
+        <p class="nav-section">Operations</p>
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+                Startup menu
             </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="telemetry">
+                Telemetry
+            </NavLink>
+        </div>
+
+        <p class="nav-section">Locked pillars</p>
+        <div class="nav-item px-3">
+            <span class="nav-link nav-locked" aria-disabled="true" title="Enabled in official Part 2">
+                Command stream
+            </span>
+        </div>
+        <div class="nav-item px-3">
+            <span class="nav-link nav-locked" aria-disabled="true" title="Enabled in the final PoE">
+                Mesh routing
+            </span>
         </div>
     </nav>
 </div>

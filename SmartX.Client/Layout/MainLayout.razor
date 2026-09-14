@@ -1,4 +1,7 @@
 ﻿@inherits LayoutComponentBase
+
+@* Operator chrome: sidebar nav + gateway status. Not a consumer marketing layout. *@
+
 <div class="page">
     <div class="sidebar">
         <NavMenu />
@@ -6,7 +9,8 @@
 
     <main>
         <div class="top-row px-4">
-            <span>Smart-X Gateway</span>
+            <span class="console-title">Smart-X Gateway · operator console</span>
+            <GatewayStatus />
         </div>
 
         <article class="content px-4">
