@@ -2,14 +2,14 @@
 
 Use this file as the only sequence until the current implementation is finished. Tick an item `[x]` only after it has been built or tested. Work **one unchecked item at a time**. Do not generate the whole application in one pass.
 
-**Current checkpoint:** Stage 0 complete. Next: Stage 1.3 template cleanup.
+**Current checkpoint:** Stage 1.3 template cleanup complete except your commit. Next: you commit, then first shared IoT concepts (sensor category enum).
 
 ---
 
 ## How to use this file
 
 - Do the next unchecked box only. Stop after it. Build or test it. Then tick it.
-- After each meaningful item, make a Git commit with a clear message. The assessment expects **20+ commits per project** (rubric: 25+ well-structured commits to avoid a GitHub deduction).
+- After each meaningful item, the student makes a Git commit with a clear message and ticks the matching **Commit** box. Agents must not create commits. The assessment expects **20+ commits per project** (rubric: 25+ well-structured commits to avoid a GitHub deduction).
 - Prefer Visual Studio GUI steps unless a terminal command is genuinely needed.
 - Explain why each class or feature exists and which rubric item it satisfies.
 - Keep the implementation IoT-specific. This is a telemetry gateway, not a generic CRUD app.
@@ -37,7 +37,7 @@ Official naming vs this checklist:
 
 ## Stage 0 — Hygiene (before domain code)
 
-- [x] Add a `.gitignore` that ignores `bin/`, `obj/`, `.vs/`, user files, other Visual Studio/build artefacts, and everything in `Project Assets/`.
+- [x] Add a `.gitignore` that ignores `bin/`, `obj/`, `.vs/`, user files, other Visual Studio/build artefacts, everything in `Project Assets/`, and `CHECKLIST.md`.
 - [x] Stop tracking already-generated build artefacts if they were committed or left untracked (`bin/`, `obj/`, `.vs/`).
 - [x] Add a project reference from `SmartX.Api` to `SmartX.Shared`.
 - [x] Add a project reference from `SmartX.Client` to `SmartX.Shared`.
@@ -52,11 +52,11 @@ Do not dump every domain type in one step.
 
 ### Template cleanup
 
-- [ ] Remove or replace `SmartX.Shared/Class1.cs`.
-- [ ] Remove API weather sample (`WeatherForecast.cs`, `WeatherForecastController.cs`) or stop using it as the public API.
-- [ ] Remove Blazor template pages that are not Smart-X (`Counter.razor`, `Weather.razor`, related nav links, `wwwroot/sample-data/weather.json` if unused).
-- [ ] Leave a minimal compilable client shell (layout + home placeholder) so the solution still runs.
-- [ ] Build the solution.
+- [x] Remove or replace `SmartX.Shared/Class1.cs`.
+- [x] Remove API weather sample (`WeatherForecast.cs`, `WeatherForecastController.cs`) or stop using it as the public API.
+- [x] Remove Blazor template pages that are not Smart-X (`Counter.razor`, `Weather.razor`, related nav links, `wwwroot/sample-data/weather.json` if unused).
+- [x] Leave a minimal compilable client shell (layout + home placeholder) so the solution still runs.
+- [x] Build the solution.
 - [ ] Commit: remove default template sample code.
 
 ### First shared IoT concepts
