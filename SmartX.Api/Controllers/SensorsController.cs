@@ -5,7 +5,7 @@ using SmartX.Shared;
 namespace SmartX.Api.Controllers;
 
 /// <summary>
-/// Sensor registration for the Smart-X gateway. Ingest and fleet queries come in later Stage 4 items.
+/// Sensor registration for the Smart-X gateway. Fleet queries come in a later Stage 4 item.
 /// </summary>
 [ApiController]
 [Route("api/sensors")]

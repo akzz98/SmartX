@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SmartX.Shared;
 
 /// <summary>
@@ -7,6 +9,7 @@ namespace SmartX.Shared;
 /// </summary>
 public readonly struct ActuatorReading
 {
+    [JsonConstructor]
     public ActuatorReading(bool isActive, ActuatorKind kind)
     {
         IsActive = isActive;

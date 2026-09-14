@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SmartX.Shared;
 
 /// <summary>
@@ -6,6 +8,7 @@ namespace SmartX.Shared;
 /// </summary>
 public readonly struct PowerReading
 {
+    [JsonConstructor]
     public PowerReading(int value, PowerMetric metric)
     {
         Value = value;
