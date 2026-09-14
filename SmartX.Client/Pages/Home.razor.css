@@ -85,3 +85,8 @@
 .pillar-locked .pillar-status {
     color: #7a8490;
 }
+
+.startup-ops {
+    margin: 1.25rem 0 0;
+    font-size: 0.9rem;
+}

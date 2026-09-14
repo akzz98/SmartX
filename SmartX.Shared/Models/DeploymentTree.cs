@@ -52,6 +52,30 @@ public static class DeploymentTree
         return ids;
     }
 
+    /// <summary>Depth-first walk of every node in the forest (site down to ESP32 mount points).</summary>
+    public static IEnumerable<DeploymentNode> Walk(IEnumerable<DeploymentNode> roots)
+    {
+        foreach (var root in roots)
+        {
+            foreach (var node in Walk(root))
+            {
+                yield return node;
+            }
+        }
+    }
+
+    public static IEnumerable<DeploymentNode> Walk(DeploymentNode node)
+    {
+        yield return node;
+        foreach (var child in node.Children)
+        {
+            foreach (var descendant in Walk(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
     private static void CollectDescendantIds(DeploymentNode node, HashSet<string> ids)
     {
         foreach (var child in node.Children)

@@ -1,0 +1,40 @@
+.state-chip {
+    display: inline-block;
+    padding: 0.12rem 0.45rem;
+    border-radius: 3px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+
+.health-normal,
+.freshness-live {
+    color: #17663a;
+    background: #e7f6ee;
+}
+
+.health-warning,
+.freshness-aging {
+    color: #9a6700;
+    background: #fff4d6;
+}
+
+.health-critical,
+.freshness-stale {
+    color: #b42318;
+    background: #fdecea;
+}
+
+.health-invalid {
+    color: #6e2a8d;
+    background: #f6e8fb;
+}
+
+.freshness-disconnected,
+.neutral {
+    color: #5b6472;
+    background: #eef1f4;
+}

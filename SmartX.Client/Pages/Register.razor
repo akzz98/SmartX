@@ -1,0 +1,134 @@
+@page "/telemetry/register"
+@inject HttpClient Http
+
+@* Register an ESP32 with the same SensorRegistrationValidator the API uses. *@
+
+<PageTitle>Register device — Smart-X</PageTitle>
+
+<section class="ingest-page">
+    <header>
+        <p class="kicker">Sensor Data Ingestion</p>
+        <h1>Register an ESP32</h1>
+        <p class="lead">
+            MAC, mount node and category are checked here and again on the gateway.
+            A failed registration does not change telemetry buffers.
+        </p>
+        <p>
+            <a href="telemetry">Overview</a>
+            ·
+            <a href="telemetry/ingest">Ingest packet</a>
+        </p>
+    </header>
+
+    <form class="sx-form" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+        <label>
+            MAC address
+            <input @bind="mac" placeholder="AA:BB:CC:DD:EE:FF" autocomplete="off" />
+        </label>
+        <label>
+            Mount node
+            <select @bind="locationNodeId">
+                <option value="">Select a node</option>
+                @foreach (var node in MountNodes)
+                {
+                    <option value="@node.Id">@node.Name (@node.Id)</option>
+                }
+            </select>
+        </label>
+        <label>
+            Category
+            <select @bind="category">
+                @foreach (var name in Enum.GetNames<SensorCategory>())
+                {
+                    <option value="@name">@name</option>
+                }
+            </select>
+        </label>
+        <label>
+            Optional device id
+            <input @bind="optionalId" placeholder="leave blank to assign from MAC" autocomplete="off" />
+        </label>
+        <div class="sx-form-actions">
+            <button type="submit" disabled="@busy">@(busy ? "Registering…" : "Register device")</button>
+        </div>
+    </form>
+
+    @if (errors.Count > 0)
+    {
+        <ul class="sx-errors" role="alert">
+            @foreach (var error in errors)
+            {
+                <li>@error</li>
+            }
+        </ul>
+    }
+    else if (success is not null)
+    {
+        <p class="sx-ok">
+            Registered <a href="telemetry/devices/@success.Id">@success.Id</a>
+            · @success.MacAddress · @success.Category
+        </p>
+    }
+</section>
+
+@code {
+    private static readonly List<DeploymentNode> Tree = DefaultDeploymentTree.Create();
+    private static readonly DeploymentNode[] MountNodes =
+        [.. DeploymentTree.Walk(Tree).Where(node => node.Level == DeploymentLevel.Node)];
+
+    private string mac = string.Empty;
+    private string locationNodeId = string.Empty;
+    private SensorCategory category = SensorCategory.Environmental;
+    private string optionalId = string.Empty;
+    private List<string> errors = [];
+    private SensorResponse? success;
+    private bool busy;
+
+    private async Task SubmitAsync()
+    {
+        errors = [];
+        success = null;
+        var request = new RegisterSensorRequest
+        {
+            Id = string.IsNullOrWhiteSpace(optionalId) ? null : optionalId.Trim(),
+            MacAddress = mac.Trim(),
+            LocationNodeId = locationNodeId.Trim(),
+            Category = category
+        };
+
+        var local = SensorRegistrationValidator.Validate(request.ToRegistration(), Tree);
+        if (!local.IsValid)
+        {
+            errors = [.. local.Errors];
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            using var response = await Http.PostAsJsonAsync("api/sensors", request, GatewayJson.Options);
+            var payload = await response.Content.ReadFromJsonAsync<RegisterSensorResponse>(GatewayJson.Options);
+            if (!response.IsSuccessStatusCode || payload is null || !payload.Succeeded || payload.Sensor is null)
+            {
+                errors = payload?.Errors.Count > 0
+                    ? payload.Errors
+                    : ["The gateway rejected this registration."];
+                return;
+            }
+
+            success = payload.Sensor;
+        }
+        catch (HttpRequestException)
+        {
+            errors = ["Gateway unreachable. Start SmartX.Api (http://localhost:5015) and retry."];
+        }
+        catch (Exception)
+        {
+            errors = ["Registration failed. No device was stored."];
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

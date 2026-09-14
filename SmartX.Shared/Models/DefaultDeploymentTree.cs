@@ -1,10 +1,8 @@
-using SmartX.Shared;
-
-namespace SmartX.Api.Storage;
+namespace SmartX.Shared;
 
 /// <summary>
-/// Simulated South African hydroponic + utility sites. Every path is Site → Zone → SubZone → Node
-/// so recursive validation accepts the forest before devices are seeded.
+/// Simulated South African hydroponic + utility sites. Shared so the API seeds the same
+/// forest the Blazor registration form validates against.
 /// </summary>
 public static class DefaultDeploymentTree
 {

@@ -12,7 +12,16 @@
             @foreach (var row in Rows.OrderByDescending(pair => pair.Value))
             {
                 <div class="rollup-row">
-                    <dt>@row.Key</dt>
+                    <dt>
+                        @if (IsHealthOrFreshness)
+                        {
+                            <StateChip Text="@row.Key" />
+                        }
+                        else
+                        {
+                            @row.Key
+                        }
+                    </dt>
                     <dd>@row.Value</dd>
                 </div>
             }
@@ -26,4 +35,8 @@
 
     [Parameter, EditorRequired]
     public Dictionary<string, int> Rows { get; set; } = new();
+
+    private bool IsHealthOrFreshness =>
+        Title.Equals("Health", StringComparison.OrdinalIgnoreCase)
+        || Title.Equals("Freshness", StringComparison.OrdinalIgnoreCase);
 }

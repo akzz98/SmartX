@@ -1,0 +1,48 @@
+@* Display-only chip. Colours encode gateway HealthState / FreshnessState; the UI does not classify. *@
+
+<span class="state-chip @CssClass">@Label</span>
+
+@code {
+    [Parameter]
+    public HealthState? Health { get; set; }
+
+    [Parameter]
+    public FreshnessState? Freshness { get; set; }
+
+    [Parameter]
+    public string? Text { get; set; }
+
+    private string Label =>
+        Health?.ToString()
+        ?? Freshness?.ToString()
+        ?? Text
+        ?? "—";
+
+    private string CssClass
+    {
+        get
+        {
+            if (Health is { } health)
+            {
+                return "health-" + health.ToString().ToLowerInvariant();
+            }
+
+            if (Freshness is { } freshness)
+            {
+                return "freshness-" + freshness.ToString().ToLowerInvariant();
+            }
+
+            if (Enum.TryParse<HealthState>(Text, ignoreCase: true, out var parsedHealth))
+            {
+                return "health-" + parsedHealth.ToString().ToLowerInvariant();
+            }
+
+            if (Enum.TryParse<FreshnessState>(Text, ignoreCase: true, out var parsedFreshness))
+            {
+                return "freshness-" + parsedFreshness.ToString().ToLowerInvariant();
+            }
+
+            return "neutral";
+        }
+    }
+}

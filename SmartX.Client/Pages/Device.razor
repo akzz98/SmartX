@@ -33,6 +33,8 @@
             <p class="device-lead">What happened on this device? Health and freshness come from the gateway.</p>
             <p>
                 <a href="telemetry/devices/@sensor.Id/history">Open history (level 3)</a>
+                ·
+                <a href="telemetry/ingest/@sensor.Id">Ingest a packet</a>
             </p>
         </header>
 
@@ -40,8 +42,8 @@
             <article class="panel">
                 <h2>Status</h2>
                 <dl>
-                    <div><dt>Health</dt><dd>@sensor.Health</dd></div>
-                    <div><dt>Freshness</dt><dd>@sensor.Freshness</dd></div>
+                    <div><dt>Health</dt><dd><StateChip Health="sensor.Health" /></dd></div>
+                    <div><dt>Freshness</dt><dd><StateChip Freshness="sensor.Freshness" /></dd></div>
                     <div><dt>Last seen</dt><dd>@(sensor.LastSeenAt?.ToString("u") ?? "never")</dd></div>
                 </dl>
             </article>
@@ -166,7 +168,9 @@
                     {
                         <li>
                             <a href="telemetry/devices/@neighbour.Id">@neighbour.Id</a>
-                            · @neighbour.Category · @neighbour.Health · @neighbour.Freshness
+                            · @neighbour.Category
+                            · <StateChip Health="neighbour.Health" />
+                            · <StateChip Freshness="neighbour.Freshness" />
                         </li>
                     }
                 </ul>

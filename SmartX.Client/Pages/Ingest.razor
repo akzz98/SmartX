@@ -1,0 +1,355 @@
+@page "/telemetry/ingest"
+@page "/telemetry/ingest/{DeviceId}"
+@using System.Globalization
+@inject HttpClient Http
+
+@* Ingest one typed packet. Client and API share TelemetryPacketValidator. *@
+
+<PageTitle>Ingest packet — Smart-X</PageTitle>
+
+<section class="ingest-page">
+    <header>
+        <p class="kicker">Sensor Data Ingestion</p>
+        <h1>Ingest a telemetry packet</h1>
+        <p class="lead">
+            Float, int and bool payloads stay on separate endpoints. Out-of-range values are rejected
+            here and recorded as gateway rejections if they reach the API.
+        </p>
+        <p>
+            <a href="telemetry">Overview</a>
+            ·
+            <a href="telemetry/register">Register device</a>
+        </p>
+    </header>
+
+    @if (loadError is not null)
+    {
+        <p class="sx-error" role="alert">@loadError</p>
+    }
+    else if (sensors is null)
+    {
+        <p>Loading registered devices…</p>
+    }
+    else
+    {
+        <form class="sx-form" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+            <label>
+                Device
+                <select @bind="selectedId" @bind:after="OnDeviceChangedAsync">
+                    <option value="">Select a registered ESP32</option>
+                    @foreach (var sensor in sensors)
+                    {
+                        <option value="@sensor.Id">@sensor.Id · @sensor.Category</option>
+                    }
+                </select>
+            </label>
+            @if (selected is not null)
+            {
+                <div class="ingest-status">
+                    <span>Category @selected.Category</span>
+                    <StateChip Health="selected.Health" />
+                    <StateChip Freshness="selected.Freshness" />
+                </div>
+            }
+            <label>
+                Sequence
+                <input type="number" min="0" @bind="sequence" />
+            </label>
+            <label>
+                Signal quality (0–100, optional)
+                <input type="number" min="0" max="100" @bind="signalText" />
+            </label>
+
+            @if (selected?.Category == SensorCategory.Environmental)
+            {
+                <label>
+                    Metric
+                    <select @bind="envMetric">
+                        @foreach (var name in Enum.GetNames<EnvironmentalMetric>())
+                        {
+                            <option value="@name">@name</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    Value
+                    <input @bind="valueText" placeholder="e.g. 21.5" />
+                </label>
+            }
+            else if (selected?.Category == SensorCategory.PowerConsumption)
+            {
+                <label>
+                    Metric
+                    <select @bind="powerMetric">
+                        @foreach (var name in Enum.GetNames<PowerMetric>())
+                        {
+                            <option value="@name">@name</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    Value
+                    <input @bind="valueText" placeholder="e.g. 1200" />
+                </label>
+            }
+            else if (selected?.Category == SensorCategory.Actuator)
+            {
+                <label>
+                    Kind
+                    <select @bind="actuatorKind">
+                        @foreach (var name in Enum.GetNames<ActuatorKind>())
+                        {
+                            <option value="@name">@name</option>
+                        }
+                    </select>
+                </label>
+                <label class="sx-check">
+                    <input type="checkbox" @bind="actuatorActive" />
+                    Active / open
+                </label>
+            }
+
+            <div class="sx-form-actions">
+                <button type="submit" disabled="@busy">@(busy ? "Sending…" : "Ingest packet")</button>
+            </div>
+        </form>
+
+        @if (errors.Count > 0)
+        {
+            <ul class="sx-errors" role="alert">
+                @foreach (var error in errors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        }
+        else if (result is not null)
+        {
+            <p class="sx-ok">
+                Accepted for @result.DeviceId
+                · health <StateChip Health="result.Health" />
+                · freshness <StateChip Freshness="result.Freshness" />
+                · <a href="telemetry/devices/@result.DeviceId">Open device</a>
+            </p>
+        }
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string? DeviceId { get; set; }
+
+    private List<SensorResponse>? sensors;
+    private string selectedId = string.Empty;
+    private SensorResponse? selected;
+    private int sequence = 1;
+    private string signalText = string.Empty;
+    private string valueText = string.Empty;
+    private EnvironmentalMetric envMetric = EnvironmentalMetric.Temperature;
+    private PowerMetric powerMetric = PowerMetric.Watts;
+    private ActuatorKind actuatorKind = ActuatorKind.Valve;
+    private bool actuatorActive;
+    private List<string> errors = [];
+    private IngestTelemetryResponse? result;
+    private string? loadError;
+    private bool busy;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loadError = null;
+        try
+        {
+            var list = await Http.GetFromJsonAsync<SensorListResponse>("api/sensors", GatewayJson.Options);
+            sensors = list?.Sensors ?? [];
+            if (!string.IsNullOrWhiteSpace(DeviceId)
+                && sensors.Any(sensor => string.Equals(sensor.Id, DeviceId, StringComparison.OrdinalIgnoreCase)))
+            {
+                selectedId = DeviceId;
+                await OnDeviceChangedAsync();
+            }
+        }
+        catch (HttpRequestException)
+        {
+            loadError = "Gateway unreachable. Start SmartX.Api (http://localhost:5015) and reload.";
+        }
+        catch (Exception)
+        {
+            loadError = "Registered devices could not be loaded from the gateway.";
+        }
+    }
+
+    private async Task OnDeviceChangedAsync()
+    {
+        errors = [];
+        result = null;
+        selected = sensors?.FirstOrDefault(sensor =>
+            string.Equals(sensor.Id, selectedId, StringComparison.OrdinalIgnoreCase));
+        if (selected is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var detail = await Http.GetFromJsonAsync<DeviceDetailResponse>(
+                $"api/sensors/{Uri.EscapeDataString(selected.Id)}",
+                GatewayJson.Options);
+            if (detail?.Ingest is { } ingest)
+            {
+                sequence = ingest.LastSequence + 1;
+                selected.Health = detail.Sensor.Health;
+                selected.Freshness = detail.Sensor.Freshness;
+            }
+        }
+        catch (HttpRequestException)
+        {
+            // Sequence stays at the form default; submit still validates.
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        errors = [];
+        result = null;
+        if (selected is null)
+        {
+            errors = ["Choose a registered device."];
+            return;
+        }
+
+        var device = SensorDtoMapper.ToDevice(selected);
+        byte? signal = null;
+        if (!string.IsNullOrWhiteSpace(signalText))
+        {
+            if (!byte.TryParse(signalText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedSignal)
+                || parsedSignal > 100)
+            {
+                errors = ["Signal quality must be 0–100 when provided."];
+                return;
+            }
+
+            signal = parsedSignal;
+        }
+
+        busy = true;
+        try
+        {
+            switch (selected.Category)
+            {
+                case SensorCategory.Environmental:
+                    await SendEnvironmentalAsync(device, signal);
+                    break;
+                case SensorCategory.PowerConsumption:
+                    await SendPowerAsync(device, signal);
+                    break;
+                case SensorCategory.Actuator:
+                    await SendActuatorAsync(device, signal);
+                    break;
+            }
+        }
+        catch (HttpRequestException)
+        {
+            errors = ["Gateway unreachable. Start SmartX.Api (http://localhost:5015) and retry."];
+        }
+        catch (Exception)
+        {
+            errors = ["The packet was not ingested. Telemetry buffers were not changed."];
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task SendEnvironmentalAsync(SensorDevice device, byte? signal)
+    {
+        if (!float.TryParse(valueText, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+        {
+            errors = ["Environmental value must be a finite number."];
+            return;
+        }
+
+        var packet = Envelope(new EnvironmentalReading(value, envMetric), signal);
+        var local = TelemetryPacketValidator.Validate(packet, device);
+        if (!local.IsValid)
+        {
+            errors = [.. local.Errors];
+            return;
+        }
+
+        await PostAsync("api/telemetry/environmental", new IngestTelemetryRequest<EnvironmentalReading> { Packet = packet });
+    }
+
+    private async Task SendPowerAsync(SensorDevice device, byte? signal)
+    {
+        if (!int.TryParse(valueText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+        {
+            errors = ["Power value must be an integer."];
+            return;
+        }
+
+        var packet = Envelope(new PowerReading(value, powerMetric), signal);
+        var local = TelemetryPacketValidator.Validate(packet, device);
+        if (!local.IsValid)
+        {
+            errors = [.. local.Errors];
+            return;
+        }
+
+        await PostAsync("api/telemetry/power", new IngestTelemetryRequest<PowerReading> { Packet = packet });
+    }
+
+    private async Task SendActuatorAsync(SensorDevice device, byte? signal)
+    {
+        var packet = Envelope(new ActuatorReading(actuatorActive, actuatorKind), signal);
+        var local = TelemetryPacketValidator.Validate(packet, device);
+        if (!local.IsValid)
+        {
+            errors = [.. local.Errors];
+            return;
+        }
+
+        await PostAsync("api/telemetry/actuator", new IngestTelemetryRequest<ActuatorReading> { Packet = packet });
+    }
+
+    private TelemetryPacket<T> Envelope<T>(T payload, byte? signal) where T : struct
+    {
+        return new TelemetryPacket<T>
+        {
+            DeviceId = selected!.Id,
+            Timestamp = DateTimeOffset.UtcNow,
+            Sequence = sequence,
+            SignalQuality = signal,
+            Payload = payload
+        };
+    }
+
+    private async Task PostAsync<T>(string url, IngestTelemetryRequest<T> request) where T : struct
+    {
+        using var response = await Http.PostAsJsonAsync(url, request, GatewayJson.Options);
+        var payload = await response.Content.ReadFromJsonAsync<IngestTelemetryResponse>(GatewayJson.Options);
+        if (!response.IsSuccessStatusCode || payload is null || !payload.Succeeded)
+        {
+            errors = payload?.Errors.Count > 0
+                ? payload.Errors
+                : ["The gateway rejected this packet. It was not stored as accepted telemetry."];
+            return;
+        }
+
+        result = payload;
+        if (selected is not null)
+        {
+            if (payload.Health is { } health)
+            {
+                selected.Health = health;
+            }
+
+            if (payload.Freshness is { } freshness)
+            {
+                selected.Freshness = freshness;
+            }
+        }
+
+        sequence++;
+    }
+}

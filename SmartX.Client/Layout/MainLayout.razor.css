@@ -51,7 +51,12 @@ main {
 
 @media (max-width: 640.98px) {
     .top-row {
-        justify-content: space-between;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .console-title {
+        white-space: normal;
     }
 
     .top-row ::deep a, .top-row ::deep .btn-link {

@@ -48,4 +48,22 @@ public static class SensorDtoMapper
             Sensor = ToResponse(device)
         };
     }
+
+    /// <summary>
+    /// Rebuilds the domain device the packet validator expects from a dashboard row.
+    /// </summary>
+    public static SensorDevice ToDevice(SensorResponse sensor)
+    {
+        return new SensorDevice
+        {
+            Id = sensor.Id,
+            MacAddress = sensor.MacAddress,
+            LocationNodeId = sensor.LocationNodeId,
+            Category = sensor.Category,
+            RegisteredAt = sensor.RegisteredAt,
+            LastSeenAt = sensor.LastSeenAt,
+            Health = sensor.Health,
+            Freshness = sensor.Freshness
+        };
+    }
 }

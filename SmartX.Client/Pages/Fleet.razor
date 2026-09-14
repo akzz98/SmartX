@@ -89,6 +89,7 @@
     else
     {
         <p class="fleet-count">@result.TotalCount device(s) in this subset.</p>
+        <div class="table-wrap">
         <table class="fleet-table">
             <thead>
                 <tr>
@@ -109,30 +110,21 @@
                         <td>@sensor.MacAddress</td>
                         <td>@sensor.LocationNodeId</td>
                         <td>@sensor.Category</td>
-                        <td>@sensor.Health</td>
-                        <td>@sensor.Freshness</td>
+                        <td><StateChip Health="sensor.Health" /></td>
+                        <td><StateChip Freshness="sensor.Freshness" /></td>
                         <td>@(sensor.LastSeenAt?.ToString("u") ?? "never")</td>
                     </tr>
                 }
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div>
     }
 </section>
 
 @code {
     private static readonly (string Id, string Label)[] LocationOptions =
-    [
-        ("site-hydro-a", "Hydroponic Facility A (site)"),
-        ("zone-1", "Zone 1"),
-        ("zone-2", "Zone 2"),
-        ("node-rack-1", "Rack 1"),
-        ("node-rack-2", "Rack 2"),
-        ("node-rack-3", "Rack 3"),
-        ("node-sump-1", "Sump 1"),
-        ("site-grid-b", "Utility Yard B (site)"),
-        ("node-inverter-1", "Inverter 1"),
-        ("node-feeder-1", "Feeder 1")
-    ];
+        [.. DeploymentTree.Walk(DefaultDeploymentTree.Create())
+            .Select(node => (node.Id, $"{node.Name} ({node.Level.ToString().ToLowerInvariant()})"))];
 
     private string locationNodeId = string.Empty;
     private string categoryText = string.Empty;

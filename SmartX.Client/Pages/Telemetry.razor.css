@@ -18,7 +18,7 @@
 }
 
 .overview-error {
-    color: #b42318;
+    color: var(--sx-critical);
     font-weight: 600;
 }
 
@@ -54,11 +54,11 @@
 }
 
 .kpi-alert .kpi-value {
-    color: #b42318;
+    color: var(--sx-critical);
 }
 
 .kpi-stale .kpi-value {
-    color: #9a6700;
+    color: var(--sx-warning);
 }
 
 .overview h2 {
@@ -84,25 +84,4 @@
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: #5b6472;
-}
-
-.state-critical,
-.state-invalid {
-    color: #b42318;
-    font-weight: 700;
-}
-
-.state-warning {
-    color: #9a6700;
-    font-weight: 700;
-}
-
-.state-stale,
-.state-disconnected {
-    color: #9a6700;
-    font-weight: 700;
-}
-
-.state-disconnected {
-    color: #7a8694;
 }

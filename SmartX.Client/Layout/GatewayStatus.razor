@@ -24,7 +24,7 @@
     {
         try
         {
-            var summary = await Http.GetFromJsonAsync<FleetSummaryResponse>("api/sensors/summary");
+            var summary = await Http.GetFromJsonAsync<FleetSummaryResponse>("api/sensors/summary", GatewayJson.Options);
             if (summary is null)
             {
                 message = "Empty response";

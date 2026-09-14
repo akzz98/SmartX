@@ -70,7 +70,9 @@
                         {
                             <li>
                                 <a href="telemetry/devices/@neighbour.Id/history">@neighbour.Id</a>
-                                · @neighbour.Category · @neighbour.Health
+                                · @neighbour.Category
+                                · <StateChip Health="neighbour.Health" />
+                                · <StateChip Freshness="neighbour.Freshness" />
                             </li>
                         }
                     </ul>
@@ -81,7 +83,7 @@
         <h2>Accepted telemetry</h2>
         @if (history.Environmental.Count > 0)
         {
-            <table class="history-table">
+            <div class="table-wrap"><table class="history-table">
                 <thead>
                     <tr>
                         <th>Seq</th>
@@ -103,11 +105,11 @@
                         </tr>
                     }
                 </tbody>
-            </table>
+            </table></div>
         }
         else if (history.Power.Count > 0)
         {
-            <table class="history-table">
+            <div class="table-wrap"><table class="history-table">
                 <thead>
                     <tr>
                         <th>Seq</th>
@@ -129,11 +131,11 @@
                         </tr>
                     }
                 </tbody>
-            </table>
+            </table></div>
         }
         else if (history.Actuator.Count > 0)
         {
-            <table class="history-table">
+            <div class="table-wrap"><table class="history-table">
                 <thead>
                     <tr>
                         <th>Seq</th>
@@ -155,7 +157,7 @@
                         </tr>
                     }
                 </tbody>
-            </table>
+            </table></div>
         }
         else
         {
