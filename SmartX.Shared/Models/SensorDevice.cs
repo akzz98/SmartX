@@ -22,4 +22,9 @@ public sealed class SensorDevice
     public HealthState Health { get; set; } = HealthState.Normal;
 
     public FreshnessState Freshness { get; set; } = FreshnessState.Disconnected;
+
+    /// <summary>
+    /// Commanded valve/switch position. When set, a different live reading is a stuck actuator.
+    /// </summary>
+    public bool? ExpectedIsActive { get; set; }
 }

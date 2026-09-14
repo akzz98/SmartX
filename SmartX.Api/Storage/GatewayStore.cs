@@ -57,15 +57,31 @@ public sealed class GatewayStore
     }
 
     public bool TryIngestEnvironmental(TelemetryPacket<EnvironmentalReading> packet, out string? error)
-        => TryIngest(packet, EnvironmentalPackets, out error);
+        => TryIngest(
+            packet,
+            EnvironmentalPackets,
+            (payload, _) => TelemetryHealthClassifier.Classify(payload),
+            out error);
 
     public bool TryIngestPower(TelemetryPacket<PowerReading> packet, out string? error)
-        => TryIngest(packet, PowerPackets, out error);
+        => TryIngest(
+            packet,
+            PowerPackets,
+            (payload, _) => TelemetryHealthClassifier.Classify(payload),
+            out error);
 
     public bool TryIngestActuator(TelemetryPacket<ActuatorReading> packet, out string? error)
-        => TryIngest(packet, ActuatorPackets, out error);
+        => TryIngest(
+            packet,
+            ActuatorPackets,
+            (payload, device) => TelemetryHealthClassifier.Classify(payload, device.ExpectedIsActive),
+            out error);
 
-    private bool TryIngest<T>(TelemetryPacket<T> packet, List<TelemetryPacket<T>> buffer, out string? error)
+    private bool TryIngest<T>(
+        TelemetryPacket<T> packet,
+        List<TelemetryPacket<T>> buffer,
+        Func<T, SensorDevice, HealthState> classify,
+        out string? error)
         where T : struct
     {
         lock (_gate)
@@ -87,6 +103,7 @@ public sealed class GatewayStore
 
             buffer.Add(packet);
             device.LastSeenAt = packet.Timestamp == default ? DateTimeOffset.UtcNow : packet.Timestamp;
+            device.Health = classify(packet.Payload, device);
             error = null;
             return true;
         }

@@ -6,7 +6,7 @@ namespace SmartX.Api.Controllers;
 
 /// <summary>
 /// Receives heterogeneous ESP32 telemetry as closed generics so JSON never deserializes
-/// mixed readings into object (no boxing). Packets are range-checked before they are stored.
+/// mixed readings into object (no boxing). Accepted packets are classified for health against thresholds.
 /// </summary>
 [ApiController]
 [Route("api/telemetry")]
@@ -60,11 +60,12 @@ public sealed class TelemetryController : ControllerBase
             return BadRequest(Fail(packet.DeviceId, [error]));
         }
 
-        // Health and freshness stay unset on the response until the classification items.
+        var updated = _store.FindSensor(packet.DeviceId);
         return Ok(new IngestTelemetryResponse
         {
             Succeeded = true,
-            DeviceId = packet.DeviceId
+            DeviceId = packet.DeviceId,
+            Health = updated?.Health
         });
     }
 
