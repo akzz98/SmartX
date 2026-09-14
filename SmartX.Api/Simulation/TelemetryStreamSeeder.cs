@@ -27,24 +27,39 @@ public static class TelemetryStreamSeeder
 
         foreach (var device in devices)
         {
-            for (var sample = 0; sample < SamplesPerDevice; sample++)
+            // Silent-sensor scenario must own this device's last-seen, or freshness would stay Live.
+            if (string.Equals(device.Id, TelemetryFaultSeeder.SilentSensorDeviceId, StringComparison.OrdinalIgnoreCase))
             {
-                var timestamp = now - (SampleInterval * (SamplesPerDevice - 1 - sample));
-                var sequence = sample + 1;
-                var quality = (byte)rng.Next(82, 97);
+                continue;
+            }
 
-                var ingested = device.Category switch
-                {
-                    SensorCategory.Environmental => IngestEnvironmental(store, device, timestamp, sequence, quality, rng),
-                    SensorCategory.PowerConsumption => IngestPower(store, device, timestamp, sequence, quality, rng),
-                    SensorCategory.Actuator => IngestActuator(store, device, timestamp, sequence, quality),
-                    _ => throw new InvalidOperationException($"No normal stream for category {device.Category}.")
-                };
+            SeedHealthyStream(store, device, lastSampleAt: now, rng);
+        }
+    }
 
-                if (!ingested)
-                {
-                    throw new InvalidOperationException($"Normal stream ingest failed for '{device.Id}' sequence {sequence}.");
-                }
+    /// <summary>
+    /// Healthy samples ending at <paramref name="lastSampleAt"/>. A dropout scenario
+    /// passes an old timestamp so freshness walks Live → Aging → Stale → Disconnected.
+    /// </summary>
+    public static void SeedHealthyStream(GatewayStore store, SensorDevice device, DateTimeOffset lastSampleAt, Random rng)
+    {
+        for (var sample = 0; sample < SamplesPerDevice; sample++)
+        {
+            var timestamp = lastSampleAt - (SampleInterval * (SamplesPerDevice - 1 - sample));
+            var sequence = sample + 1;
+            var quality = (byte)rng.Next(82, 97);
+
+            var ingested = device.Category switch
+            {
+                SensorCategory.Environmental => IngestEnvironmental(store, device, timestamp, sequence, quality, rng),
+                SensorCategory.PowerConsumption => IngestPower(store, device, timestamp, sequence, quality, rng),
+                SensorCategory.Actuator => IngestActuator(store, device, timestamp, sequence, quality),
+                _ => throw new InvalidOperationException($"No normal stream for category {device.Category}.")
+            };
+
+            if (!ingested)
+            {
+                throw new InvalidOperationException($"Stream ingest failed for '{device.Id}' sequence {sequence}.");
             }
         }
     }

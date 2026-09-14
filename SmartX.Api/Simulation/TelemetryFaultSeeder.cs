@@ -100,4 +100,29 @@ public static class TelemetryFaultSeeder
             }
         }
     }
+
+    public const string SilentSensorDeviceId = "sx-env-sump-temp";
+
+    /// <summary>
+    /// Sump temperature transmitted, then went quiet. Last sample is older than the
+    /// stale window so the classifier is already at Disconnected (it passed Aging and Stale).
+    /// </summary>
+    public static void SeedSilentSensor(GatewayStore store)
+    {
+        var device = store.FindSensor(SilentSensorDeviceId)
+            ?? throw new InvalidOperationException($"Silent sensor target '{SilentSensorDeviceId}' is not registered.");
+
+        var ingest = store.GetIngestState(device.Id);
+        if (ingest is { PacketCount: > 0 })
+        {
+            throw new InvalidOperationException($"'{device.Id}' already has packets; the dropout stream would not be last-seen.");
+        }
+
+        // Past StaleWindow so a GET immediately shows Disconnected, not Stale.
+        var lastSampleAt = DateTimeOffset.UtcNow
+            - TelemetryFreshnessClassifier.StaleWindow
+            - TimeSpan.FromMinutes(5);
+
+        TelemetryStreamSeeder.SeedHealthyStream(store, device, lastSampleAt, new Random(7112));
+    }
 }
