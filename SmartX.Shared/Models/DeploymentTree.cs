@@ -2,7 +2,7 @@ namespace SmartX.Shared;
 
 /// <summary>
 /// Walks the nested site → zone → node forest. Used by registration, location filters,
-/// and (later) recursive path validation.
+/// and recursive path validation.
 /// </summary>
 public static class DeploymentTree
 {

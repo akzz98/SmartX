@@ -67,6 +67,16 @@ public static class SensorRegistrationValidator
                 // A site/zone is a grouping, not a mount point for a single ESP32.
                 result.AddError("A sensor must be attached to a node, not a site, zone, or sub-zone.");
             }
+            else
+            {
+                var path = DeploymentTreeValidator.ValidateSensorPlacement(
+                    deploymentRoots,
+                    registration.LocationNodeId.Trim());
+                foreach (var error in path.Errors)
+                {
+                    result.AddError(error);
+                }
+            }
         }
 
         return result;

@@ -13,6 +13,12 @@ public sealed class GatewayStore
     public GatewayStore()
     {
         DeploymentRoots = DefaultDeploymentTree.Create();
+        var tree = DeploymentTreeValidator.ValidateForest(DeploymentRoots);
+        if (!tree.IsValid)
+        {
+            throw new InvalidOperationException(
+                "Default deployment tree failed recursive validation: " + string.Join(" ", tree.Errors));
+        }
     }
 
     public List<DeploymentNode> DeploymentRoots { get; }
