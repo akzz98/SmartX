@@ -24,7 +24,7 @@ Content-Type: application/json
   }
 }
 
-### Ingest power integer packet
+### Ingest power integer packet (register a powerConsumption device first — category must match)
 POST {{SmartX.Api_HostAddress}}/api/telemetry/power
 Content-Type: application/json
 
@@ -37,7 +37,7 @@ Content-Type: application/json
   }
 }
 
-### Ingest actuator boolean packet
+### Ingest actuator boolean packet (register an actuator device first — category must match)
 POST {{SmartX.Api_HostAddress}}/api/telemetry/actuator
 Content-Type: application/json
 
