@@ -56,6 +56,9 @@ public sealed class GatewayStore
     // Refused packets stay out of the typed buffers; operators still see that garbage arrived.
     public List<TelemetryRejection> Rejections { get; } = [];
 
+    // File bytes stay on disk; this list is metadata so ingest buffers never hold photos or logs.
+    private readonly List<SensorAttachment> _attachments = [];
+
     public IReadOnlyList<SensorDevice> SnapshotSensors()
     {
         lock (_gate)
@@ -270,6 +273,67 @@ public sealed class GatewayStore
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(SnapshotRejections(deviceId));
+    }
+
+    public IReadOnlyList<SensorAttachment> SnapshotAttachments(string sensorId)
+    {
+        lock (_gate)
+        {
+            return _attachments
+                .Where(row => string.Equals(row.SensorId, sensorId, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(row => row.StoredAt)
+                .ToList();
+        }
+    }
+
+    public Task<IReadOnlyList<SensorAttachment>> SnapshotAttachmentsAsync(
+        string sensorId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(SnapshotAttachments(sensorId));
+    }
+
+    public SensorAttachment? FindAttachment(string sensorId, string attachmentId)
+    {
+        lock (_gate)
+        {
+            return _attachments.FirstOrDefault(row =>
+                string.Equals(row.SensorId, sensorId, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(row.Id, attachmentId, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    public Task<SensorAttachment?> FindAttachmentAsync(
+        string sensorId,
+        string attachmentId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(FindAttachment(sensorId, attachmentId));
+    }
+
+    public bool TryAddAttachment(SensorAttachment attachment, out string? error)
+    {
+        lock (_gate)
+        {
+            if (Fleet.FindById(attachment.SensorId) is null)
+            {
+                error = "Device is not registered on this gateway.";
+                return false;
+            }
+
+            _attachments.Add(attachment);
+            error = null;
+            return true;
+        }
+    }
+
+    public Task<StoreResult> TryAddAttachmentAsync(SensorAttachment attachment, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var succeeded = TryAddAttachment(attachment, out var error);
+        return Task.FromResult(new StoreResult(succeeded, error));
     }
 
     private void RefreshFreshnessLocked()

@@ -22,4 +22,7 @@ public sealed class DeviceDetailResponse
 
     /// <summary>Commanded actuator position, when this device is a valve or switch.</summary>
     public bool? ExpectedIsActive { get; set; }
+
+    /// <summary>Rack photos, configs and hardware logs stored against this ESP32.</summary>
+    public List<AttachmentResponse> Attachments { get; set; } = [];
 }

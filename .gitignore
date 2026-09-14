@@ -38,3 +38,6 @@ Desktop.ini
 ## Course materials — keep local only
 Project Assets/
 /CHECKLIST.md
+
+## Runtime diagnostic uploads (photos, configs, hardware logs)
+**/App_Data/

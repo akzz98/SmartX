@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Http.Features;
+using SmartX.Shared;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,6 +34,12 @@ builder.Services.AddControllers()
 builder.Services.AddOpenApi();
 // One in-memory fleet for the simulation so registration (and later ingest) share the same devices.
 builder.Services.AddSingleton<SmartX.Api.Storage.GatewayStore>();
+builder.Services.AddSingleton<SmartX.Api.Storage.AttachmentFileStore>();
+builder.Services.Configure<FormOptions>(options =>
+{
+    // Keep multipart bodies at the diagnostic-file cap so a huge upload cannot stall ingest.
+    options.MultipartBodyLengthLimit = AttachmentValidator.MaxBytes + 32_768;
+});
 
 var app = builder.Build();
 
@@ -43,6 +51,36 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors(DashboardCorsPolicy);
 app.UseAuthorization();
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (BadHttpRequestException) when (IsAttachmentUpload(context.Request))
+    {
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsJsonAsync(new UploadAttachmentResponse
+            {
+                Succeeded = false,
+                Errors =
+                [
+                    "The upload is too large or the multipart body is invalid. Attachments must be 2 MB or smaller."
+                ]
+            });
+        }
+    }
+});
 app.MapControllers();
 
 app.Run();
+
+static bool IsAttachmentUpload(HttpRequest request)
+{
+    return HttpMethods.IsPost(request.Method)
+        && request.Path.StartsWithSegments("/api/sensors")
+        && request.Path.Value is { } path
+        && path.Contains("/attachments", StringComparison.OrdinalIgnoreCase);
+}

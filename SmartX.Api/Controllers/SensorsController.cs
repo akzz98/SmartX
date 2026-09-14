@@ -174,6 +174,7 @@ public sealed class SensorsController : ControllerBase
         var location = DeploymentTree.Find(_store.DeploymentRoots, device.LocationNodeId);
         var environmental = await _store.SnapshotEnvironmentalPacketsAsync(device.Id, cancellationToken);
         var rejections = await _store.SnapshotRejectionsAsync(device.Id, cancellationToken);
+        var attachments = await _store.SnapshotAttachmentsAsync(device.Id, cancellationToken);
         return Ok(new DeviceDetailResponse
         {
             Sensor = SensorDtoMapper.ToResponse(device),
@@ -182,7 +183,8 @@ public sealed class SensorsController : ControllerBase
             LatestEnvironmentalDelta = EnvironmentalDelta.Latest(environmental),
             Ingest = await _store.GetIngestStateAsync(device.Id, cancellationToken),
             Rejections = [.. rejections],
-            ExpectedIsActive = device.ExpectedIsActive
+            ExpectedIsActive = device.ExpectedIsActive,
+            Attachments = [.. attachments.Select(AttachmentValidator.ToResponse)]
         });
     }
 

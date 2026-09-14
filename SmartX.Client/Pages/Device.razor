@@ -92,6 +92,59 @@
             </article>
         </div>
 
+        <article class="panel attachments">
+            <h2>Attachments</h2>
+            <p class="hint">
+                Rack photos, JSON configs and hardware logs stay on this ESP32 profile.
+                A rejected upload does not change telemetry or health.
+            </p>
+            <div class="attach-form">
+                <label>
+                    Kind
+                    <select @bind="selectedKind">
+                        <option value="@AttachmentKind.HardwareLog">Hardware log</option>
+                        <option value="@AttachmentKind.Configuration">Configuration</option>
+                        <option value="@AttachmentKind.Photo">Deployment photo</option>
+                    </select>
+                </label>
+                <InputFile OnChange="OnAttachmentSelected" accept=".log,.txt,.csv,.json,.xml,.conf,.jpg,.jpeg,.png,.webp" />
+                <button type="button" disabled="@uploading" @onclick="UploadAttachmentAsync">
+                    @(uploading ? "Uploading…" : "Attach file")
+                </button>
+            </div>
+            @if (uploadError is not null)
+            {
+                <p class="device-error" role="alert">@uploadError</p>
+            }
+            else if (uploadOk is not null)
+            {
+                <p class="device-ok">@uploadOk</p>
+            }
+            @if (detail.Attachments.Count == 0)
+            {
+                <p>No files attached yet.</p>
+            }
+            else
+            {
+                <ul class="attach-list">
+                    @foreach (var attachment in detail.Attachments)
+                    {
+                        <li>
+                            <div>
+                                <strong>@attachment.FileName</strong>
+                                <span> · @KindLabel(attachment.Kind) · @attachment.SizeBytes B · @attachment.StoredAt.ToString("u")</span>
+                                <a href="@AttachmentHref(attachment)" target="_blank" rel="noopener">Download</a>
+                            </div>
+                            @if (attachment.Kind == AttachmentKind.Photo)
+                            {
+                                <img class="attach-thumb" src="@AttachmentHref(attachment)" alt="@attachment.FileName" />
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+
         <article class="panel">
             <h2>Location context</h2>
             <p>
@@ -131,11 +184,19 @@
     private List<SensorResponse> related = [];
     private string? loadError;
     private bool notFound;
+    private AttachmentKind selectedKind = AttachmentKind.HardwareLog;
+    private IBrowserFile? pendingFile;
+    private string? uploadError;
+    private string? uploadOk;
+    private bool uploading;
 
     protected override async Task OnParametersSetAsync()
     {
         notFound = false;
         loadError = null;
+        uploadError = null;
+        uploadOk = null;
+        pendingFile = null;
         detail = null;
         latest = null;
         related = [];
@@ -211,4 +272,84 @@
     }
 
     private string ThresholdText => GatewayBands.Describe(latest, detail?.ExpectedIsActive);
+
+    private void OnAttachmentSelected(InputFileChangeEventArgs args)
+    {
+        pendingFile = args.File;
+        uploadError = null;
+        uploadOk = null;
+    }
+
+    private async Task UploadAttachmentAsync()
+    {
+        uploadError = null;
+        uploadOk = null;
+        if (pendingFile is null)
+        {
+            uploadError = "Choose a configuration file, photo, or hardware log first.";
+            return;
+        }
+
+        if (pendingFile.Size > AttachmentValidator.MaxBytes)
+        {
+            uploadError = "Attachments must be 2 MB or smaller.";
+            return;
+        }
+
+        uploading = true;
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            await using var stream = pendingFile.OpenReadStream(AttachmentValidator.MaxBytes);
+            using var fileContent = new StreamContent(stream);
+            if (!string.IsNullOrWhiteSpace(pendingFile.ContentType))
+            {
+                fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(pendingFile.ContentType);
+            }
+
+            content.Add(fileContent, "file", pendingFile.Name);
+            content.Add(new StringContent(selectedKind.ToString()), "kind");
+
+            var encoded = Uri.EscapeDataString(DeviceId);
+            using var response = await Http.PostAsync($"api/sensors/{encoded}/attachments", content);
+            var payload = await response.Content.ReadFromJsonAsync<UploadAttachmentResponse>(GatewayJson.Options);
+
+            if (!response.IsSuccessStatusCode || payload is null || !payload.Succeeded || payload.Attachment is null)
+            {
+                uploadError = payload?.Errors.Count > 0
+                    ? string.Join(" ", payload.Errors)
+                    : "The gateway rejected this upload. Telemetry was not changed.";
+                return;
+            }
+
+            detail!.Attachments.Insert(0, payload.Attachment);
+            uploadOk = $"{payload.Attachment.FileName} attached to this sensor.";
+            pendingFile = null;
+        }
+        catch (HttpRequestException)
+        {
+            uploadError = "Gateway unreachable. Start SmartX.Api (http://localhost:5015) and retry the upload.";
+        }
+        catch (Exception)
+        {
+            uploadError = "The upload failed. Telemetry and health on this device were not changed.";
+        }
+        finally
+        {
+            uploading = false;
+        }
+    }
+
+    private string AttachmentHref(AttachmentResponse attachment)
+    {
+        var root = (Http.BaseAddress?.ToString() ?? "http://localhost:5015/").TrimEnd('/');
+        return $"{root}/api/sensors/{Uri.EscapeDataString(DeviceId)}/attachments/{Uri.EscapeDataString(attachment.Id)}";
+    }
+
+    private static string KindLabel(AttachmentKind kind) => kind switch
+    {
+        AttachmentKind.Photo => "photo",
+        AttachmentKind.Configuration => "configuration",
+        _ => "hardware log"
+    };
 }
