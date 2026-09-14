@@ -1,3 +1,4 @@
+using SmartX.Api.Simulation;
 using SmartX.Shared;
 
 namespace SmartX.Api.Storage;
@@ -19,6 +20,8 @@ public sealed class GatewayStore
             throw new InvalidOperationException(
                 "Default deployment tree failed recursive validation: " + string.Join(" ", tree.Errors));
         }
+
+        FleetSeeder.SeedDevices(this);
     }
 
     public List<DeploymentNode> DeploymentRoots { get; }
