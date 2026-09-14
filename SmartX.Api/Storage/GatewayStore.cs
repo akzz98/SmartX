@@ -26,6 +26,9 @@ public sealed class GatewayStore
 
     public List<TelemetryPacket<ActuatorReading>> ActuatorPackets { get; } = [];
 
+    // Raw sequential batches land here as arrays before they are queried as List<T>.
+    public RawTelemetryBatches RawBatches { get; } = new();
+
     public IReadOnlyList<SensorDevice> SnapshotSensors()
     {
         lock (_gate)
@@ -102,6 +105,7 @@ public sealed class GatewayStore
             packet,
             EnvironmentalPackets,
             (payload, _) => TelemetryHealthClassifier.Classify(payload),
+            payload => RawBatches.AppendEnvironmental(packet.DeviceId, payload),
             out error);
 
     public bool TryIngestPower(TelemetryPacket<PowerReading> packet, out string? error)
@@ -109,6 +113,7 @@ public sealed class GatewayStore
             packet,
             PowerPackets,
             (payload, _) => TelemetryHealthClassifier.Classify(payload),
+            payload => RawBatches.AppendPower(packet.DeviceId, payload),
             out error);
 
     public bool TryIngestActuator(TelemetryPacket<ActuatorReading> packet, out string? error)
@@ -116,12 +121,14 @@ public sealed class GatewayStore
             packet,
             ActuatorPackets,
             (payload, device) => TelemetryHealthClassifier.Classify(payload, device.ExpectedIsActive),
+            payload => RawBatches.AppendActuator(packet.DeviceId, payload),
             out error);
 
     private bool TryIngest<T>(
         TelemetryPacket<T> packet,
         List<TelemetryPacket<T>> buffer,
         Func<T, SensorDevice, HealthState> classify,
+        Action<T> appendRawBatch,
         out string? error)
         where T : struct
     {
@@ -142,6 +149,8 @@ public sealed class GatewayStore
                 return false;
             }
 
+            // Arrays first: sequential per-device history, then the List<T> query buffer.
+            appendRawBatch(packet.Payload);
             buffer.Add(packet);
             device.LastSeenAt = packet.Timestamp == default ? DateTimeOffset.UtcNow : packet.Timestamp;
             device.Health = classify(packet.Payload, device);
