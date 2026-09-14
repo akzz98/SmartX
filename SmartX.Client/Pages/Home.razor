@@ -1,10 +1,39 @@
 ﻿@page "/"
 
-<PageTitle>Smart-X Gateway</PageTitle>
+@* Official Part 1 Task 2 startup menu. Only telemetry is in scope; the other pillars stay visible and locked. *@
 
-<h1>Smart-X IoT Gateway</h1>
+<PageTitle>Smart-X Gateway — Startup</PageTitle>
 
-<p>
-    Simulated telemetry ingestion and troubleshooting dashboard.
-    The operator overview, filters, and device details will be added here using Progressive Disclosure.
-</p>
+<section class="startup">
+    <header class="startup-header">
+        <p class="startup-kicker">Smart-X simulated IoT gateway</p>
+        <h1>Select an operational pillar</h1>
+        <p class="startup-lead">
+            Hydroponics, utilities, and site-meter telemetry. Progressive Disclosure dashboard
+            is attached to ingestion only.
+        </p>
+    </header>
+
+    <div class="pillar-grid">
+        <a class="pillar pillar-enabled" href="telemetry">
+            <span class="pillar-status">Available</span>
+            <h2>Sensor Data Ingestion and Telemetry</h2>
+            <p>Register ESP32 devices, ingest heterogeneous packets, and investigate health and freshness.</p>
+            <span class="pillar-action">Open telemetry dashboard</span>
+        </a>
+
+        <div class="pillar pillar-locked" aria-disabled="true">
+            <span class="pillar-status">Locked</span>
+            <h2>Real-Time Command Stream and History</h2>
+            <p>Downstream commands to actuators. Visible for the three-pillar layout; enabled in official Part 2.</p>
+            <span class="pillar-action">Unavailable in this assessment part</span>
+        </div>
+
+        <div class="pillar pillar-locked" aria-disabled="true">
+            <span class="pillar-status">Locked</span>
+            <h2>Network Topology and Mesh Routing</h2>
+            <p>Site mesh and routing. Visible for the three-pillar layout; enabled in the final PoE.</p>
+            <span class="pillar-action">Unavailable until final PoE</span>
+        </div>
+    </div>
+</section>

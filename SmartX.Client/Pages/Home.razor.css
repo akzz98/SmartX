@@ -1,0 +1,87 @@
+.startup-kicker {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5b6472;
+}
+
+.startup-header h1 {
+    margin: 0 0 0.5rem;
+    font-size: 1.6rem;
+}
+
+.startup-lead {
+    max-width: 42rem;
+    margin: 0 0 1.5rem;
+    color: #4a5563;
+}
+
+.pillar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 1rem;
+}
+
+.pillar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 1.1rem 1.15rem 1rem;
+    border: 1px solid #cfd6df;
+    border-radius: 4px;
+    background: #f8fafc;
+    text-decoration: none;
+    color: inherit;
+    min-height: 12rem;
+}
+
+.pillar h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.pillar p {
+    margin: 0;
+    flex: 1;
+    color: #4a5563;
+    font-size: 0.92rem;
+}
+
+.pillar-status {
+    align-self: flex-start;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.pillar-action {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.pillar-enabled {
+    border-color: #1b6ec2;
+    background: #fff;
+}
+
+.pillar-enabled:hover {
+    border-color: #155a9c;
+    box-shadow: 0 0 0 1px #155a9c;
+}
+
+.pillar-enabled .pillar-status,
+.pillar-enabled .pillar-action {
+    color: #1b6ec2;
+}
+
+.pillar-locked {
+    opacity: 0.72;
+    cursor: not-allowed;
+    background: #eef1f4;
+}
+
+.pillar-locked .pillar-status {
+    color: #7a8490;
+}
