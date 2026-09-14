@@ -30,6 +30,8 @@ builder.Services.AddControllers()
     });
 
 builder.Services.AddOpenApi();
+// One in-memory fleet for the simulation so registration (and later ingest) share the same devices.
+builder.Services.AddSingleton<SmartX.Api.Storage.GatewayStore>();
 
 var app = builder.Build();
 

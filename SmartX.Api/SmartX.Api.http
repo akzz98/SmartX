@@ -1,3 +1,13 @@
 @SmartX.Api_HostAddress = http://localhost:5015
 
+### Register a sensor on Rack 1 (node-rack-1)
+POST {{SmartX.Api_HostAddress}}/api/sensors
+Content-Type: application/json
+
+{
+  "macAddress": "AA:BB:CC:DD:EE:01",
+  "locationNodeId": "node-rack-1",
+  "category": "environmental"
+}
+
 ###
