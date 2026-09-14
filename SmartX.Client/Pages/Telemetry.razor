@@ -54,7 +54,9 @@
             <Rollup Title="Location" Rows="summary.ByLocation" />
         </div>
 
-        <h2>Needs attention</h2>
+        <p>
+            <a href="telemetry/fleet">Filter this fleet (level 1)</a>
+        </p>
         @if (attention.Count == 0)
         {
             <p>No health or connectivity exceptions in this snapshot.</p>

@@ -1,0 +1,218 @@
+@page "/telemetry/fleet"
+@inject HttpClient Http
+
+@* Progressive Disclosure level 1: which subset is affected? Filters run on the gateway, not only in the browser. *@
+
+<PageTitle>Filter fleet — Smart-X</PageTitle>
+
+<section class="fleet">
+    <header class="fleet-header">
+        <p class="fleet-kicker">Progressive Disclosure · level 1</p>
+        <h1>Filterable sensor fleet</h1>
+        <p class="fleet-lead">
+            Which subset is affected? Location filters include descendant nodes (a zone includes its racks).
+        </p>
+        <p><a href="telemetry">Back to overview</a></p>
+    </header>
+
+    <form class="filter-grid" @onsubmit="ApplyAsync" @onsubmit:preventDefault>
+        <label>
+            Location
+            <select @bind="locationNodeId">
+                <option value="">Any location</option>
+                @foreach (var location in LocationOptions)
+                {
+                    <option value="@location.Id">@location.Label</option>
+                }
+            </select>
+        </label>
+        <label>
+            Category
+            <select @bind="categoryText">
+                <option value="">Any category</option>
+                @foreach (var name in Enum.GetNames<SensorCategory>())
+                {
+                    <option value="@name">@name</option>
+                }
+            </select>
+        </label>
+        <label>
+            Device id
+            <input @bind="idContains" placeholder="e.g. rack1-temp" />
+        </label>
+        <label>
+            MAC
+            <input @bind="macContains" placeholder="e.g. AA:BB:CC:10" />
+        </label>
+        <label>
+            Health
+            <select @bind="healthText">
+                <option value="">Any health</option>
+                @foreach (var name in Enum.GetNames<HealthState>())
+                {
+                    <option value="@name">@name</option>
+                }
+            </select>
+        </label>
+        <label>
+            Freshness
+            <select @bind="freshnessText">
+                <option value="">Any freshness</option>
+                @foreach (var name in Enum.GetNames<FreshnessState>())
+                {
+                    <option value="@name">@name</option>
+                }
+            </select>
+        </label>
+        <label>
+            Last seen from
+            <input type="datetime-local" @bind="fromLocal" />
+        </label>
+        <label>
+            Last seen to
+            <input type="datetime-local" @bind="toLocal" />
+        </label>
+        <div class="filter-actions">
+            <button type="submit">Apply filters</button>
+            <button type="button" @onclick="ClearAsync">Clear</button>
+        </div>
+    </form>
+
+    @if (loadError is not null)
+    {
+        <p class="fleet-error" role="alert">@loadError</p>
+    }
+    else if (result is null)
+    {
+        <p>Loading fleet…</p>
+    }
+    else
+    {
+        <p class="fleet-count">@result.TotalCount device(s) in this subset.</p>
+        <table class="fleet-table">
+            <thead>
+                <tr>
+                    <th>Device</th>
+                    <th>MAC</th>
+                    <th>Location</th>
+                    <th>Category</th>
+                    <th>Health</th>
+                    <th>Freshness</th>
+                    <th>Last seen</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var sensor in result.Sensors)
+                {
+                    <tr>
+                        <td>@sensor.Id</td>
+                        <td>@sensor.MacAddress</td>
+                        <td>@sensor.LocationNodeId</td>
+                        <td>@sensor.Category</td>
+                        <td>@sensor.Health</td>
+                        <td>@sensor.Freshness</td>
+                        <td>@(sensor.LastSeenAt?.ToString("u") ?? "never")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private static readonly (string Id, string Label)[] LocationOptions =
+    [
+        ("site-hydro-a", "Hydroponic Facility A (site)"),
+        ("zone-1", "Zone 1"),
+        ("zone-2", "Zone 2"),
+        ("node-rack-1", "Rack 1"),
+        ("node-rack-2", "Rack 2"),
+        ("node-rack-3", "Rack 3"),
+        ("node-sump-1", "Sump 1"),
+        ("site-grid-b", "Utility Yard B (site)"),
+        ("node-inverter-1", "Inverter 1"),
+        ("node-feeder-1", "Feeder 1")
+    ];
+
+    private string locationNodeId = string.Empty;
+    private string categoryText = string.Empty;
+    private string idContains = string.Empty;
+    private string macContains = string.Empty;
+    private string healthText = string.Empty;
+    private string freshnessText = string.Empty;
+    private DateTime? fromLocal;
+    private DateTime? toLocal;
+
+    private SensorListResponse? result;
+    private string? loadError;
+
+    protected override Task OnInitializedAsync() => ApplyAsync();
+
+    private async Task ClearAsync()
+    {
+        locationNodeId = string.Empty;
+        categoryText = string.Empty;
+        idContains = string.Empty;
+        macContains = string.Empty;
+        healthText = string.Empty;
+        freshnessText = string.Empty;
+        fromLocal = null;
+        toLocal = null;
+        await ApplyAsync();
+    }
+
+    private async Task ApplyAsync()
+    {
+        loadError = null;
+        try
+        {
+            result = await Http.GetFromJsonAsync<SensorListResponse>(BuildUrl(), GatewayJson.Options);
+        }
+        catch (HttpRequestException)
+        {
+            loadError = "Gateway unreachable. Start SmartX.Api (http://localhost:5015) and reload.";
+            result = null;
+        }
+        catch (Exception)
+        {
+            loadError = "The fleet subset could not be loaded from the gateway.";
+            result = null;
+        }
+    }
+
+    private string BuildUrl()
+    {
+        var query = new List<string>();
+        Add(query, "locationNodeId", locationNodeId);
+        Add(query, "category", categoryText);
+        Add(query, "id", idContains);
+        Add(query, "mac", macContains);
+        Add(query, "health", healthText);
+        Add(query, "freshness", freshnessText);
+        if (fromLocal is { } from)
+        {
+            query.Add("from=" + Uri.EscapeDataString(ToUtcIso(from)));
+        }
+
+        if (toLocal is { } to)
+        {
+            query.Add("to=" + Uri.EscapeDataString(ToUtcIso(to)));
+        }
+
+        return query.Count == 0 ? "api/sensors" : "api/sensors?" + string.Join("&", query);
+    }
+
+    private static void Add(List<string> query, string name, string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            query.Add($"{name}={Uri.EscapeDataString(value.Trim())}");
+        }
+    }
+
+    private static string ToUtcIso(DateTime local)
+    {
+        var unspecified = DateTime.SpecifyKind(local, DateTimeKind.Local);
+        return unspecified.ToUniversalTime().ToString("o");
+    }
+}
