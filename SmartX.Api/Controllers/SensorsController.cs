@@ -69,13 +69,18 @@ public sealed class SensorsController : ControllerBase
     public async Task<ActionResult<FleetSummaryResponse>> Summary(CancellationToken cancellationToken)
     {
         var sensors = await _store.SnapshotSensorsAsync(cancellationToken);
+        var powerPackets = await _store.SnapshotPowerPacketsAsync(cancellationToken);
+        var combinedWatts = PowerLoadAggregator.CombinedLatestWatts(powerPackets);
+        var wattDelta = PowerLoadAggregator.LatestWattDelta(powerPackets);
         var summary = new FleetSummaryResponse
         {
             DeviceCount = sensors.Count,
             ExceptionCount = sensors.Count(sensor =>
                 sensor.Health is HealthState.Warning or HealthState.Critical or HealthState.Invalid),
             StaleOrDisconnectedCount = sensors.Count(sensor =>
-                sensor.Freshness is FreshnessState.Stale or FreshnessState.Disconnected)
+                sensor.Freshness is FreshnessState.Stale or FreshnessState.Disconnected),
+            CombinedSiteWatts = combinedWatts.Value,
+            LatestWattDelta = wattDelta?.Value
         };
 
         CountBy(summary.ByCategory, sensors, sensor => sensor.Category.ToString());
@@ -165,11 +170,13 @@ public sealed class SensorsController : ControllerBase
         }
 
         var location = DeploymentTree.Find(_store.DeploymentRoots, device.LocationNodeId);
+        var environmental = await _store.SnapshotEnvironmentalPacketsAsync(device.Id, cancellationToken);
         return Ok(new DeviceDetailResponse
         {
             Sensor = SensorDtoMapper.ToResponse(device),
             LocationName = location?.Name,
-            LocationLevel = location?.Level
+            LocationLevel = location?.Level,
+            LatestEnvironmentalDelta = EnvironmentalDelta.Latest(environmental)
         });
     }
 

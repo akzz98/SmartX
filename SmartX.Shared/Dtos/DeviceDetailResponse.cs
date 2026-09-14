@@ -10,4 +10,7 @@ public sealed class DeviceDetailResponse
     public string? LocationName { get; set; }
 
     public DeploymentLevel? LocationLevel { get; set; }
+
+    /// <summary>Current − previous environmental sample (operator -), for spike investigation.</summary>
+    public EnvironmentalReading? LatestEnvironmentalDelta { get; set; }
 }

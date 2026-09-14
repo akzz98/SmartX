@@ -217,6 +217,36 @@ public sealed class GatewayStore
         return Task.FromResult(HistoryFor(device, take));
     }
 
+    public IReadOnlyList<TelemetryPacket<PowerReading>> SnapshotPowerPackets()
+    {
+        lock (_gate)
+        {
+            return PowerPackets.ToList();
+        }
+    }
+
+    public Task<IReadOnlyList<TelemetryPacket<PowerReading>>> SnapshotPowerPacketsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(SnapshotPowerPackets());
+    }
+
+    public IReadOnlyList<TelemetryPacket<EnvironmentalReading>> SnapshotEnvironmentalPackets(string deviceId)
+    {
+        lock (_gate)
+        {
+            return Latest(EnvironmentalPackets, deviceId, 50);
+        }
+    }
+
+    public Task<IReadOnlyList<TelemetryPacket<EnvironmentalReading>>> SnapshotEnvironmentalPacketsAsync(
+        string deviceId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(SnapshotEnvironmentalPackets(deviceId));
+    }
+
     private static List<TelemetryPacket<T>> Latest<T>(
         List<TelemetryPacket<T>> buffer,
         string deviceId,

@@ -19,4 +19,10 @@ public sealed class FleetSummaryResponse
     public Dictionary<string, int> ByHealth { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public Dictionary<string, int> ByFreshness { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Latest watts from every power meter, combined with operator +.</summary>
+    public int CombinedSiteWatts { get; set; }
+
+    /// <summary>Most recent site-level watt change using operator -.</summary>
+    public int? LatestWattDelta { get; set; }
 }
