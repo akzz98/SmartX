@@ -1,0 +1,39 @@
+## Visual Studio / .NET
+.vs/
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.rsuser
+*.cache
+*.pidb
+*.svclog
+*.pdb
+*.ilk
+*.log
+*.tmp
+*.temp
+
+## NuGet
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+
+## Publish / test
+[Pp]ublish/
+TestResults/
+*.coverage
+*.coveragexml
+
+## OS / editor
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+## Course materials — keep local only
+Project Assets/
