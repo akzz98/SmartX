@@ -197,4 +197,99 @@ public static class TelemetryFaultSeeder
 
         store.RecordRejection(deviceId, validation.Errors);
     }
+
+    public static bool DefersLiveStream(string deviceId)
+    {
+        if (string.Equals(deviceId, SilentSensorDeviceId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return LocationOutageDeviceIds.Contains(deviceId);
+    }
+
+    public const string LocationOutageNodeId = "node-feeder-1";
+
+    public static readonly HashSet<string> LocationOutageDeviceIds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "sx-pwr-feeder-a",
+        "sx-pwr-feeder-b",
+        "sx-act-feeder-switch"
+    };
+
+    /// <summary>
+    /// Feeder node lost uplink: every device on that node last transmitted together,
+    /// inside the stale window so the overview shows a location-level outage.
+    /// </summary>
+    public static void SeedLocationOutage(GatewayStore store)
+    {
+        var lastSampleAt = DateTimeOffset.UtcNow
+            - TelemetryFreshnessClassifier.AgingWindow
+            - TimeSpan.FromMinutes(3);
+        var rng = new Random(7112);
+
+        foreach (var deviceId in LocationOutageDeviceIds)
+        {
+            var device = store.FindSensor(deviceId)
+                ?? throw new InvalidOperationException($"Location outage target '{deviceId}' is not registered.");
+
+            if (!string.Equals(device.LocationNodeId, LocationOutageNodeId, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"'{deviceId}' is not on {LocationOutageNodeId}.");
+            }
+
+            var ingest = store.GetIngestState(device.Id);
+            if (ingest is { PacketCount: > 0 })
+            {
+                throw new InvalidOperationException($"'{device.Id}' already has packets; the outage stream would not be last-seen.");
+            }
+
+            TelemetryStreamSeeder.SeedHealthyStream(store, device, lastSampleAt, rng);
+        }
+    }
+
+    // Climb back into the 18–26 °C crop band after the 44 °C spike.
+    private static readonly float[] TemperatureRecoveryCelsius = [32f, 24f, 21.5f];
+
+    /// <summary>
+    /// Rack 1 temperature returns to a normal crop reading so operators can see
+    /// recovery after Critical, without erasing the spike from history.
+    /// </summary>
+    public static void SeedRecovery(GatewayStore store)
+    {
+        var device = store.FindSensor(TemperatureSpikeDeviceId)
+            ?? throw new InvalidOperationException($"Recovery target '{TemperatureSpikeDeviceId}' is not registered.");
+
+        var ingest = store.GetIngestState(device.Id)
+            ?? throw new InvalidOperationException($"No ingest state for '{device.Id}' — seed the spike first.");
+
+        var timestamp = (ingest.LastIngestedAt ?? DateTimeOffset.UtcNow).AddSeconds(30);
+        var sequence = ingest.LastSequence;
+
+        foreach (var celsius in TemperatureRecoveryCelsius)
+        {
+            sequence++;
+            timestamp = timestamp.AddSeconds(30);
+            var packet = new TelemetryPacket<EnvironmentalReading>
+            {
+                DeviceId = device.Id,
+                Timestamp = timestamp,
+                Sequence = sequence,
+                SignalQuality = 91,
+                Payload = new EnvironmentalReading(celsius, EnvironmentalMetric.Temperature)
+            };
+
+            var validation = TelemetryPacketValidator.Validate(packet, device);
+            if (!validation.IsValid)
+            {
+                throw new InvalidOperationException(
+                    $"Recovery packet rejected for '{device.Id}' sequence {sequence}: {string.Join(" ", validation.Errors)}");
+            }
+
+            if (!store.TryIngestEnvironmental(packet, out var error))
+            {
+                throw new InvalidOperationException($"Recovery ingest failed for '{device.Id}': {error}");
+            }
+        }
+    }
 }

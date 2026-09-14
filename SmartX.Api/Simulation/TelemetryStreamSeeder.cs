@@ -27,8 +27,8 @@ public static class TelemetryStreamSeeder
 
         foreach (var device in devices)
         {
-            // Silent-sensor scenario must own this device's last-seen, or freshness would stay Live.
-            if (string.Equals(device.Id, TelemetryFaultSeeder.SilentSensorDeviceId, StringComparison.OrdinalIgnoreCase))
+            // Fault scenarios that own last-seen (dropout / location outage) skip the live stream.
+            if (TelemetryFaultSeeder.DefersLiveStream(device.Id))
             {
                 continue;
             }
