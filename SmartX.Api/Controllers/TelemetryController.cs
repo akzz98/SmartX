@@ -6,7 +6,7 @@ namespace SmartX.Api.Controllers;
 
 /// <summary>
 /// Receives heterogeneous ESP32 telemetry as closed generics so JSON never deserializes
-/// mixed readings into object (no boxing). Accepted packets get health and freshness from the gateway.
+/// mixed readings into object (no boxing). Actions are async so the dashboard never blocks the API thread.
 /// </summary>
 [ApiController]
 [Route("api/telemetry")]
@@ -20,24 +20,28 @@ public sealed class TelemetryController : ControllerBase
     }
 
     [HttpPost("environmental")]
-    public ActionResult<IngestTelemetryResponse> IngestEnvironmental(
-        [FromBody] IngestTelemetryRequest<EnvironmentalReading> request)
-        => Ingest(request.Packet, _store.TryIngestEnvironmental, TelemetryPacketValidator.Validate);
+    public Task<ActionResult<IngestTelemetryResponse>> IngestEnvironmental(
+        [FromBody] IngestTelemetryRequest<EnvironmentalReading> request,
+        CancellationToken cancellationToken)
+        => IngestAsync(request.Packet, _store.TryIngestEnvironmentalAsync, TelemetryPacketValidator.Validate, cancellationToken);
 
     [HttpPost("power")]
-    public ActionResult<IngestTelemetryResponse> IngestPower(
-        [FromBody] IngestTelemetryRequest<PowerReading> request)
-        => Ingest(request.Packet, _store.TryIngestPower, TelemetryPacketValidator.Validate);
+    public Task<ActionResult<IngestTelemetryResponse>> IngestPower(
+        [FromBody] IngestTelemetryRequest<PowerReading> request,
+        CancellationToken cancellationToken)
+        => IngestAsync(request.Packet, _store.TryIngestPowerAsync, TelemetryPacketValidator.Validate, cancellationToken);
 
     [HttpPost("actuator")]
-    public ActionResult<IngestTelemetryResponse> IngestActuator(
-        [FromBody] IngestTelemetryRequest<ActuatorReading> request)
-        => Ingest(request.Packet, _store.TryIngestActuator, TelemetryPacketValidator.Validate);
+    public Task<ActionResult<IngestTelemetryResponse>> IngestActuator(
+        [FromBody] IngestTelemetryRequest<ActuatorReading> request,
+        CancellationToken cancellationToken)
+        => IngestAsync(request.Packet, _store.TryIngestActuatorAsync, TelemetryPacketValidator.Validate, cancellationToken);
 
-    private ActionResult<IngestTelemetryResponse> Ingest<T>(
+    private async Task<ActionResult<IngestTelemetryResponse>> IngestAsync<T>(
         TelemetryPacket<T>? packet,
-        TryIngest<T> tryIngest,
-        Func<TelemetryPacket<T>, SensorDevice?, ValidationResult> validate)
+        TryIngestAsync<T> tryIngest,
+        Func<TelemetryPacket<T>, SensorDevice?, ValidationResult> validate,
+        CancellationToken cancellationToken)
         where T : struct
     {
         if (packet is null)
@@ -45,7 +49,9 @@ public sealed class TelemetryController : ControllerBase
             return BadRequest(Fail(string.Empty, ["Telemetry packet is required."]));
         }
 
-        var device = string.IsNullOrWhiteSpace(packet.DeviceId) ? null : _store.FindSensor(packet.DeviceId);
+        var device = string.IsNullOrWhiteSpace(packet.DeviceId)
+            ? null
+            : await _store.FindSensorAsync(packet.DeviceId, cancellationToken);
         var validation = validate(packet, device);
         if (!validation.IsValid)
         {
@@ -55,12 +61,13 @@ public sealed class TelemetryController : ControllerBase
             return StatusCode(status, Fail(packet.DeviceId, validation.Errors));
         }
 
-        if (!tryIngest(packet, out var error) && error is not null)
+        var ingested = await tryIngest(packet, cancellationToken);
+        if (!ingested.Succeeded && ingested.Error is not null)
         {
-            return BadRequest(Fail(packet.DeviceId, [error]));
+            return BadRequest(Fail(packet.DeviceId, [ingested.Error]));
         }
 
-        var updated = _store.FindSensor(packet.DeviceId);
+        var updated = await _store.FindSensorAsync(packet.DeviceId, cancellationToken);
         return Ok(new IngestTelemetryResponse
         {
             Succeeded = true,
@@ -80,5 +87,8 @@ public sealed class TelemetryController : ControllerBase
         };
     }
 
-    private delegate bool TryIngest<T>(TelemetryPacket<T> packet, out string? error) where T : struct;
+    private delegate Task<StoreResult> TryIngestAsync<T>(
+        TelemetryPacket<T> packet,
+        CancellationToken cancellationToken)
+        where T : struct;
 }

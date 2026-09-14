@@ -35,6 +35,12 @@ public sealed class GatewayStore
         }
     }
 
+    public Task<IReadOnlyList<SensorDevice>> SnapshotSensorsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(SnapshotSensors());
+    }
+
     public bool TryAdd(SensorDevice device, out string? error)
     {
         lock (_gate)
@@ -55,6 +61,40 @@ public sealed class GatewayStore
             error = null;
             return true;
         }
+    }
+
+    public Task<StoreResult> TryAddAsync(SensorDevice device, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var succeeded = TryAdd(device, out var error);
+        return Task.FromResult(new StoreResult(succeeded, error));
+    }
+
+    public Task<StoreResult> TryIngestEnvironmentalAsync(
+        TelemetryPacket<EnvironmentalReading> packet,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var succeeded = TryIngestEnvironmental(packet, out var error);
+        return Task.FromResult(new StoreResult(succeeded, error));
+    }
+
+    public Task<StoreResult> TryIngestPowerAsync(
+        TelemetryPacket<PowerReading> packet,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var succeeded = TryIngestPower(packet, out var error);
+        return Task.FromResult(new StoreResult(succeeded, error));
+    }
+
+    public Task<StoreResult> TryIngestActuatorAsync(
+        TelemetryPacket<ActuatorReading> packet,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var succeeded = TryIngestActuator(packet, out var error);
+        return Task.FromResult(new StoreResult(succeeded, error));
     }
 
     public bool TryIngestEnvironmental(TelemetryPacket<EnvironmentalReading> packet, out string? error)
@@ -126,6 +166,12 @@ public sealed class GatewayStore
         }
     }
 
+    public Task<SensorDevice?> FindSensorAsync(string id, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(FindSensor(id));
+    }
+
     private void RefreshFreshnessLocked()
     {
         var now = DateTimeOffset.UtcNow;
@@ -160,6 +206,15 @@ public sealed class GatewayStore
 
             return history;
         }
+    }
+
+    public Task<TelemetryHistoryResponse> HistoryForAsync(
+        SensorDevice device,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(HistoryFor(device, take));
     }
 
     private static List<TelemetryPacket<T>> Latest<T>(

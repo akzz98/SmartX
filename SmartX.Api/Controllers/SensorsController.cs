@@ -6,6 +6,7 @@ namespace SmartX.Api.Controllers;
 
 /// <summary>
 /// Sensor registration and Progressive Disclosure reads (overview, filter, detail, history).
+/// All actions are async so Blazor HttpClient calls do not block the gateway thread.
 /// </summary>
 [ApiController]
 [Route("api/sensors")]
@@ -23,7 +24,9 @@ public sealed class SensorsController : ControllerBase
     /// SensorRegistrationValidator against the in-memory deployment tree.
     /// </summary>
     [HttpPost]
-    public ActionResult<RegisterSensorResponse> Register([FromBody] RegisterSensorRequest request)
+    public async Task<ActionResult<RegisterSensorResponse>> Register(
+        [FromBody] RegisterSensorRequest request,
+        CancellationToken cancellationToken)
     {
         var validation = SensorRegistrationValidator.Validate(
             request.ToRegistration(),
@@ -48,10 +51,11 @@ public sealed class SensorsController : ControllerBase
             Freshness = FreshnessState.Disconnected
         };
 
-        if (!_store.TryAdd(device, out var duplicateError) && duplicateError is not null)
+        var added = await _store.TryAddAsync(device, cancellationToken);
+        if (!added.Succeeded && added.Error is not null)
         {
             var failed = new ValidationResult();
-            failed.AddError(duplicateError);
+            failed.AddError(added.Error);
             return Conflict(SensorDtoMapper.ToFailedRegistration(failed));
         }
 
@@ -62,9 +66,9 @@ public sealed class SensorsController : ControllerBase
     /// Level 0 overview: counts and roll-ups so operators can see what needs attention.
     /// </summary>
     [HttpGet("summary")]
-    public ActionResult<FleetSummaryResponse> Summary()
+    public async Task<ActionResult<FleetSummaryResponse>> Summary(CancellationToken cancellationToken)
     {
-        var sensors = _store.SnapshotSensors();
+        var sensors = await _store.SnapshotSensorsAsync(cancellationToken);
         var summary = new FleetSummaryResponse
         {
             DeviceCount = sensors.Count,
@@ -86,7 +90,7 @@ public sealed class SensorsController : ControllerBase
     /// A location id includes that node and every descendant (zone filter includes racks).
     /// </summary>
     [HttpGet]
-    public ActionResult<SensorListResponse> List(
+    public async Task<ActionResult<SensorListResponse>> List(
         [FromQuery] string? locationNodeId,
         [FromQuery] SensorCategory? category,
         [FromQuery] string? id,
@@ -94,9 +98,10 @@ public sealed class SensorsController : ControllerBase
         [FromQuery] HealthState? health,
         [FromQuery] FreshnessState? freshness,
         [FromQuery] DateTimeOffset? from,
-        [FromQuery] DateTimeOffset? to)
+        [FromQuery] DateTimeOffset? to,
+        CancellationToken cancellationToken)
     {
-        IEnumerable<SensorDevice> sensors = _store.SnapshotSensors();
+        IEnumerable<SensorDevice> sensors = await _store.SnapshotSensorsAsync(cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(locationNodeId))
         {
@@ -151,9 +156,9 @@ public sealed class SensorsController : ControllerBase
     /// Level 2 details: what happened on this device.
     /// </summary>
     [HttpGet("{id}")]
-    public ActionResult<DeviceDetailResponse> Get(string id)
+    public async Task<ActionResult<DeviceDetailResponse>> Get(string id, CancellationToken cancellationToken)
     {
-        var device = _store.FindSensor(id);
+        var device = await _store.FindSensorAsync(id, cancellationToken);
         if (device is null)
         {
             return NotFound();
@@ -172,16 +177,19 @@ public sealed class SensorsController : ControllerBase
     /// Level 3 history: why it happened — latest typed packets for this device.
     /// </summary>
     [HttpGet("{id}/history")]
-    public ActionResult<TelemetryHistoryResponse> History(string id, [FromQuery] int take = 50)
+    public async Task<ActionResult<TelemetryHistoryResponse>> History(
+        string id,
+        [FromQuery] int take = 50,
+        CancellationToken cancellationToken = default)
     {
-        var device = _store.FindSensor(id);
+        var device = await _store.FindSensorAsync(id, cancellationToken);
         if (device is null)
         {
             return NotFound();
         }
 
         take = Math.Clamp(take, 1, 500);
-        return Ok(_store.HistoryFor(device, take));
+        return Ok(await _store.HistoryForAsync(device, take, cancellationToken));
     }
 
     private static void CountBy(
