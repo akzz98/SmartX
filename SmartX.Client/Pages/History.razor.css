@@ -1,0 +1,78 @@
+.history-kicker {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5b6472;
+}
+
+.history h1 {
+    margin: 0.4rem 0 0.4rem;
+    font-size: 1.5rem;
+}
+
+.history-lead {
+    max-width: 46rem;
+    color: #4a5563;
+}
+
+.history-error {
+    color: #b42318;
+    font-weight: 600;
+}
+
+.history-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+.panel {
+    border: 1px solid #cfd6df;
+    background: #fff;
+    padding: 0.85rem 0.95rem;
+}
+
+.panel h2 {
+    margin: 0 0 0.5rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #5b6472;
+}
+
+.hint {
+    color: #5b6472;
+    font-size: 0.85rem;
+}
+
+.history h2 {
+    margin: 1rem 0 0.5rem;
+    font-size: 1.05rem;
+}
+
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.history-table th,
+.history-table td {
+    text-align: left;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid #e4e7eb;
+}
+
+.history-table th {
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #5b6472;
+}
+
+.panel ul {
+    margin: 0.4rem 0 0;
+    padding-left: 1.1rem;
+}

@@ -1,0 +1,262 @@
+@page "/telemetry/devices/{DeviceId}/history"
+@inject HttpClient Http
+
+@* Progressive Disclosure level 3: why did it happen? Only this device's typed packets, not the live fleet. *@
+
+<PageTitle>History · @(DeviceId) — Smart-X</PageTitle>
+
+<section class="history">
+    <p class="history-kicker">Progressive Disclosure · level 3</p>
+    <p>
+        <a href="telemetry">Overview</a>
+        ·
+        <a href="telemetry/fleet">Fleet</a>
+        ·
+        <a href="telemetry/devices/@DeviceId">Device</a>
+    </p>
+
+    @if (notFound)
+    {
+        <p class="history-error" role="alert">Device '@DeviceId' is not registered on this gateway.</p>
+    }
+    else if (loadError is not null)
+    {
+        <p class="history-error" role="alert">@loadError</p>
+    }
+    else if (detail is null || history is null)
+    {
+        <p>Loading history…</p>
+    }
+    else
+    {
+        <header>
+            <h1>History · @DeviceId</h1>
+            <p class="history-lead">
+                Why did it happen? This page shows one device's accepted packets and rejected frames,
+                not the rest of the live fleet.
+            </p>
+        </header>
+
+        <div class="history-meta">
+            <article class="panel">
+                <h2>Gateway bands</h2>
+                <p>@GatewayBands.Describe(history, detail.ExpectedIsActive)</p>
+                <p class="hint">Live ≤ 60s · Aging ≤ 5 min · Stale ≤ 15 min · then Disconnected.</p>
+            </article>
+            <article class="panel">
+                <h2>Packet notes</h2>
+                <p>@SequenceNote</p>
+                <p>Rejected frames: @detail.Rejections.Count</p>
+                @if (detail.Rejections.Count > 0)
+                {
+                    <ul>
+                        @foreach (var rejection in detail.Rejections)
+                        {
+                            <li>@rejection.RejectedAt.ToString("u"): @string.Join(" ", rejection.Errors)</li>
+                        }
+                    </ul>
+                }
+            </article>
+            <article class="panel">
+                <h2>Related series on @detail.Sensor.LocationNodeId</h2>
+                @if (related.Count == 0)
+                {
+                    <p>No other devices on this node.</p>
+                }
+                else
+                {
+                    <ul>
+                        @foreach (var neighbour in related)
+                        {
+                            <li>
+                                <a href="telemetry/devices/@neighbour.Id/history">@neighbour.Id</a>
+                                · @neighbour.Category · @neighbour.Health
+                            </li>
+                        }
+                    </ul>
+                }
+            </article>
+        </div>
+
+        <h2>Accepted telemetry</h2>
+        @if (history.Environmental.Count > 0)
+        {
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Seq</th>
+                        <th>Time</th>
+                        <th>Signal</th>
+                        <th>Metric</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var packet in history.Environmental)
+                    {
+                        <tr>
+                            <td>@packet.Sequence</td>
+                            <td>@packet.Timestamp.ToString("u")</td>
+                            <td>@(packet.SignalQuality?.ToString() ?? "—")</td>
+                            <td>@packet.Payload.Metric</td>
+                            <td>@packet.Payload.Value.ToString("0.###")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (history.Power.Count > 0)
+        {
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Seq</th>
+                        <th>Time</th>
+                        <th>Signal</th>
+                        <th>Metric</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var packet in history.Power)
+                    {
+                        <tr>
+                            <td>@packet.Sequence</td>
+                            <td>@packet.Timestamp.ToString("u")</td>
+                            <td>@(packet.SignalQuality?.ToString() ?? "—")</td>
+                            <td>@packet.Payload.Metric</td>
+                            <td>@packet.Payload.Value</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (history.Actuator.Count > 0)
+        {
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Seq</th>
+                        <th>Time</th>
+                        <th>Signal</th>
+                        <th>Kind</th>
+                        <th>Active</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var packet in history.Actuator)
+                    {
+                        <tr>
+                            <td>@packet.Sequence</td>
+                            <td>@packet.Timestamp.ToString("u")</td>
+                            <td>@(packet.SignalQuality?.ToString() ?? "—")</td>
+                            <td>@packet.Payload.Kind</td>
+                            <td>@(packet.Payload.IsActive ? "yes" : "no")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p>No accepted packets for this device.</p>
+        }
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string DeviceId { get; set; } = string.Empty;
+
+    private DeviceDetailResponse? detail;
+    private TelemetryHistoryResponse? history;
+    private List<SensorResponse> related = [];
+    private string? loadError;
+    private bool notFound;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        notFound = false;
+        loadError = null;
+        detail = null;
+        history = null;
+        related = [];
+
+        try
+        {
+            var encoded = Uri.EscapeDataString(DeviceId);
+            using var response = await Http.GetAsync($"api/sensors/{encoded}");
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                notFound = true;
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+            detail = await response.Content.ReadFromJsonAsync<DeviceDetailResponse>(GatewayJson.Options);
+            history = await Http.GetFromJsonAsync<TelemetryHistoryResponse>(
+                $"api/sensors/{encoded}/history?take=50",
+                GatewayJson.Options);
+
+            if (detail is not null)
+            {
+                var neighbours = await Http.GetFromJsonAsync<SensorListResponse>(
+                    $"api/sensors?locationNodeId={Uri.EscapeDataString(detail.Sensor.LocationNodeId)}",
+                    GatewayJson.Options);
+                related = (neighbours?.Sensors ?? [])
+                    .Where(sensor => !string.Equals(sensor.Id, DeviceId, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+        }
+        catch (HttpRequestException)
+        {
+            loadError = "Gateway unreachable. Start SmartX.Api (http://localhost:5015) and reload.";
+        }
+        catch (Exception)
+        {
+            loadError = "History could not be loaded from the gateway.";
+        }
+    }
+
+    private string SequenceNote
+    {
+        get
+        {
+            var sequences = Sequences();
+            if (sequences.Count == 0)
+            {
+                return "No accepted sequence numbers.";
+            }
+
+            var newest = sequences[0];
+            var oldest = sequences[^1];
+            var expected = newest - oldest + 1;
+            if (expected != sequences.Count)
+            {
+                return $"Sequences {oldest}–{newest} with gaps ({sequences.Count} stored packets).";
+            }
+
+            return $"Continuous sequences {oldest}–{newest} ({sequences.Count} packets).";
+        }
+    }
+
+    private List<int> Sequences()
+    {
+        if (history is null)
+        {
+            return [];
+        }
+
+        if (history.Environmental.Count > 0)
+        {
+            return history.Environmental.Select(packet => packet.Sequence).ToList();
+        }
+
+        if (history.Power.Count > 0)
+        {
+            return history.Power.Select(packet => packet.Sequence).ToList();
+        }
+
+        return history.Actuator.Select(packet => packet.Sequence).ToList();
+    }
+}
