@@ -26,6 +26,13 @@ public sealed class GatewayStore
 
     public List<TelemetryPacket<ActuatorReading>> ActuatorPackets { get; } = [];
 
+    // Flattened numeric lists copied from jagged/window arrays for collection-based queries.
+    public List<float> PromotedEnvironmentalValues { get; } = [];
+
+    public List<int> PromotedPowerValues { get; } = [];
+
+    public List<bool> PromotedActuatorValues { get; } = [];
+
     // Raw sequential batches land here as arrays before they are queried as List<T>.
     public RawTelemetryBatches RawBatches { get; } = new();
 
@@ -105,7 +112,8 @@ public sealed class GatewayStore
             packet,
             EnvironmentalPackets,
             (payload, _) => TelemetryHealthClassifier.Classify(payload),
-            payload => RawBatches.AppendEnvironmental(packet.DeviceId, payload),
+            payload => RawBatches.AppendEnvironmental(packet),
+            RawBatches.PromoteEnvironmentalPackets,
             out error);
 
     public bool TryIngestPower(TelemetryPacket<PowerReading> packet, out string? error)
@@ -113,7 +121,8 @@ public sealed class GatewayStore
             packet,
             PowerPackets,
             (payload, _) => TelemetryHealthClassifier.Classify(payload),
-            payload => RawBatches.AppendPower(packet.DeviceId, payload),
+            payload => RawBatches.AppendPower(packet),
+            RawBatches.PromotePowerPackets,
             out error);
 
     public bool TryIngestActuator(TelemetryPacket<ActuatorReading> packet, out string? error)
@@ -121,7 +130,8 @@ public sealed class GatewayStore
             packet,
             ActuatorPackets,
             (payload, device) => TelemetryHealthClassifier.Classify(payload, device.ExpectedIsActive),
-            payload => RawBatches.AppendActuator(packet.DeviceId, payload),
+            payload => RawBatches.AppendActuator(packet),
+            RawBatches.PromoteActuatorPackets,
             out error);
 
     private bool TryIngest<T>(
@@ -129,6 +139,7 @@ public sealed class GatewayStore
         List<TelemetryPacket<T>> buffer,
         Func<T, SensorDevice, HealthState> classify,
         Action<T> appendRawBatch,
+        Func<List<TelemetryPacket<T>>> promoteToList,
         out string? error)
         where T : struct
     {
@@ -149,9 +160,12 @@ public sealed class GatewayStore
                 return false;
             }
 
-            // Arrays first: sequential per-device history, then the List<T> query buffer.
+            // Arrays first, then copy the sequential batch into List<T> for queries.
             appendRawBatch(packet.Payload);
-            buffer.Add(packet);
+            TelemetryCollectionPromoter.Replace(buffer, promoteToList());
+            TelemetryCollectionPromoter.Replace(PromotedEnvironmentalValues, RawBatches.PromoteEnvironmentalValues());
+            TelemetryCollectionPromoter.Replace(PromotedPowerValues, RawBatches.PromotePowerValues());
+            TelemetryCollectionPromoter.Replace(PromotedActuatorValues, RawBatches.PromoteActuatorValues());
             device.LastSeenAt = packet.Timestamp == default ? DateTimeOffset.UtcNow : packet.Timestamp;
             device.Health = classify(packet.Payload, device);
             device.Freshness = TelemetryFreshnessClassifier.Classify(device.LastSeenAt, DateTimeOffset.UtcNow);

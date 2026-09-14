@@ -5,7 +5,7 @@ namespace SmartX.Api.Storage;
 /// <summary>
 /// First landing zone for sequential telemetry. Jagged rows hold a variable-length
 /// history per ESP32; the rectangular window holds a fixed batch of the last samples
-/// across temperature, moisture, and pH. List&lt;T&gt; promotion is the next checklist step.
+/// across temperature, moisture, and pH. Promote*() copies those arrays into List&lt;T&gt;.
 /// </summary>
 public sealed class RawTelemetryBatches
 {
@@ -26,31 +26,66 @@ public sealed class RawTelemetryBatches
     private int _windowWriteIndex;
     private int _windowFilled;
 
+    private TelemetryPacket<EnvironmentalReading>[] _environmentalPackets = [];
+    private TelemetryPacket<PowerReading>[] _powerPackets = [];
+    private TelemetryPacket<ActuatorReading>[] _actuatorPackets = [];
+
     public float[][] EnvironmentalSamples => _environmentalSamples;
     public int[][] PowerSamples => _powerSamples;
     public bool[][] ActuatorSamples => _actuatorSamples;
     public float[,] EnvironmentalWindow => _environmentalWindow;
     public int EnvironmentalWindowFilled => _windowFilled;
 
-    public void AppendEnvironmental(string deviceId, EnvironmentalReading reading)
+    public void AppendEnvironmental(TelemetryPacket<EnvironmentalReading> packet)
     {
-        AppendJagged(ref _environmentalDeviceIds, ref _environmentalSamples, deviceId, reading.Value);
-        _environmentalWindow[_windowWriteIndex, (int)reading.Metric] = reading.Value;
+        AppendJagged(ref _environmentalDeviceIds, ref _environmentalSamples, packet.DeviceId, packet.Payload.Value);
+        _environmentalWindow[_windowWriteIndex, (int)packet.Payload.Metric] = packet.Payload.Value;
         _windowWriteIndex = (_windowWriteIndex + 1) % EnvironmentalWindowLength;
         if (_windowFilled < EnvironmentalWindowLength)
         {
             _windowFilled++;
         }
+
+        AppendPacket(ref _environmentalPackets, packet);
     }
 
-    public void AppendPower(string deviceId, PowerReading reading)
+    public void AppendPower(TelemetryPacket<PowerReading> packet)
     {
-        AppendJagged(ref _powerDeviceIds, ref _powerSamples, deviceId, reading.Value);
+        AppendJagged(ref _powerDeviceIds, ref _powerSamples, packet.DeviceId, packet.Payload.Value);
+        AppendPacket(ref _powerPackets, packet);
     }
 
-    public void AppendActuator(string deviceId, ActuatorReading reading)
+    public void AppendActuator(TelemetryPacket<ActuatorReading> packet)
     {
-        AppendJagged(ref _actuatorDeviceIds, ref _actuatorSamples, deviceId, reading.IsActive);
+        AppendJagged(ref _actuatorDeviceIds, ref _actuatorSamples, packet.DeviceId, packet.Payload.IsActive);
+        AppendPacket(ref _actuatorPackets, packet);
+    }
+
+    public List<TelemetryPacket<EnvironmentalReading>> PromoteEnvironmentalPackets()
+        => TelemetryCollectionPromoter.FromArray(_environmentalPackets);
+
+    public List<TelemetryPacket<PowerReading>> PromotePowerPackets()
+        => TelemetryCollectionPromoter.FromArray(_powerPackets);
+
+    public List<TelemetryPacket<ActuatorReading>> PromoteActuatorPackets()
+        => TelemetryCollectionPromoter.FromArray(_actuatorPackets);
+
+    public List<float> PromoteEnvironmentalValues()
+        => TelemetryCollectionPromoter.FromJagged(_environmentalSamples);
+
+    public List<int> PromotePowerValues()
+        => TelemetryCollectionPromoter.FromJagged(_powerSamples);
+
+    public List<bool> PromoteActuatorValues()
+        => TelemetryCollectionPromoter.FromJagged(_actuatorSamples);
+
+    public List<float> PromoteEnvironmentalWindow()
+        => TelemetryCollectionPromoter.FromWindow(_environmentalWindow, _windowFilled);
+
+    private static void AppendPacket<T>(ref T[] batch, T packet)
+    {
+        Array.Resize(ref batch, batch.Length + 1);
+        batch[^1] = packet;
     }
 
     private static void AppendJagged<T>(
