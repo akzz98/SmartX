@@ -24,6 +24,7 @@ public sealed class GatewayStore
         FleetSeeder.SeedDevices(this);
         TelemetryStreamSeeder.SeedNormalStreams(this);
         TelemetryFaultSeeder.SeedTemperatureSpike(this);
+        TelemetryFaultSeeder.SeedStuckActuator(this);
     }
 
     public List<DeploymentNode> DeploymentRoots { get; }
