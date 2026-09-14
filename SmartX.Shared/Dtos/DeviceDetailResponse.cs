@@ -19,4 +19,7 @@ public sealed class DeviceDetailResponse
 
     /// <summary>Malformed packets for this device that the gateway refused to store.</summary>
     public List<TelemetryRejection> Rejections { get; set; } = [];
+
+    /// <summary>Commanded actuator position, when this device is a valve or switch.</summary>
+    public bool? ExpectedIsActive { get; set; }
 }

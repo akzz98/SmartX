@@ -77,7 +77,7 @@
                     @foreach (var sensor in attention)
                     {
                         <tr>
-                            <td>@sensor.Id</td>
+                            <td><a href="telemetry/devices/@sensor.Id">@sensor.Id</a></td>
                             <td>@sensor.LocationNodeId</td>
                             <td>@sensor.Category</td>
                             <td class="state-@sensor.Health.ToString().ToLowerInvariant()">@sensor.Health</td>

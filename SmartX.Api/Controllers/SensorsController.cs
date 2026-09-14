@@ -181,7 +181,8 @@ public sealed class SensorsController : ControllerBase
             LocationLevel = location?.Level,
             LatestEnvironmentalDelta = EnvironmentalDelta.Latest(environmental),
             Ingest = await _store.GetIngestStateAsync(device.Id, cancellationToken),
-            Rejections = [.. rejections]
+            Rejections = [.. rejections],
+            ExpectedIsActive = device.ExpectedIsActive
         });
     }
 

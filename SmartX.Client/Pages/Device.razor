@@ -1,0 +1,242 @@
+@page "/telemetry/devices/{DeviceId}"
+@inject HttpClient Http
+
+@* Progressive Disclosure level 2: what happened on this ESP32? Display gateway state; do not re-detect it. *@
+
+<PageTitle>@(detail?.Sensor.Id ?? DeviceId) — Smart-X</PageTitle>
+
+<section class="device">
+    <p class="device-kicker">Progressive Disclosure · level 2</p>
+    <p>
+        <a href="telemetry">Overview</a>
+        ·
+        <a href="telemetry/fleet">Fleet</a>
+    </p>
+
+    @if (notFound)
+    {
+        <p class="device-error" role="alert">Device '@DeviceId' is not registered on this gateway.</p>
+    }
+    else if (loadError is not null)
+    {
+        <p class="device-error" role="alert">@loadError</p>
+    }
+    else if (detail is null)
+    {
+        <p>Loading device…</p>
+    }
+    else
+    {
+        var sensor = detail.Sensor;
+        <header class="device-header">
+            <h1>@sensor.Id</h1>
+            <p class="device-lead">What happened on this device? Health and freshness come from the gateway.</p>
+        </header>
+
+        <div class="status-row">
+            <article class="panel">
+                <h2>Status</h2>
+                <dl>
+                    <div><dt>Health</dt><dd>@sensor.Health</dd></div>
+                    <div><dt>Freshness</dt><dd>@sensor.Freshness</dd></div>
+                    <div><dt>Last seen</dt><dd>@(sensor.LastSeenAt?.ToString("u") ?? "never")</dd></div>
+                </dl>
+            </article>
+            <article class="panel">
+                <h2>Latest value</h2>
+                <p>@LatestValueText</p>
+                @if (detail.LatestEnvironmentalDelta is { } delta)
+                {
+                    <p>Environmental delta (current − previous): @delta.Value.ToString("0.###") @delta.Metric</p>
+                }
+            </article>
+            <article class="panel">
+                <h2>Thresholds (gateway bands)</h2>
+                <p>@ThresholdText</p>
+                <p class="hint">Live ≤ 60s · Aging ≤ 5 min · Stale ≤ 15 min · then Disconnected.</p>
+            </article>
+        </div>
+
+        <div class="status-row">
+            <article class="panel">
+                <h2>Identity and configuration</h2>
+                <dl>
+                    <div><dt>MAC</dt><dd>@sensor.MacAddress</dd></div>
+                    <div><dt>Category</dt><dd>@sensor.Category</dd></div>
+                    <div><dt>Registered</dt><dd>@sensor.RegisteredAt.ToString("u")</dd></div>
+                    @if (detail.ExpectedIsActive is { } expected)
+                    {
+                        <div><dt>Commanded actuator</dt><dd>@(expected ? "active / open" : "inactive / closed")</dd></div>
+                    }
+                </dl>
+            </article>
+            <article class="panel">
+                <h2>Packets and errors</h2>
+                <dl>
+                    <div><dt>Accepted packets</dt><dd>@(detail.Ingest?.PacketCount ?? 0)</dd></div>
+                    <div><dt>Last sequence</dt><dd>@(detail.Ingest?.LastSequence.ToString() ?? "—")</dd></div>
+                    <div><dt>Rejected frames</dt><dd>@detail.Rejections.Count</dd></div>
+                </dl>
+                @if (detail.Rejections.Count > 0)
+                {
+                    <ul class="reject-list">
+                        @foreach (var rejection in detail.Rejections)
+                        {
+                            <li>@rejection.RejectedAt.ToString("u"): @string.Join(" ", rejection.Errors)</li>
+                        }
+                    </ul>
+                }
+            </article>
+        </div>
+
+        <article class="panel">
+            <h2>Location context</h2>
+            <p>
+                @detail.LocationName (@sensor.LocationNodeId)
+                @if (detail.LocationLevel is { } level)
+                {
+                    <span>· @level</span>
+                }
+            </p>
+            <h3>Related sensors on this node</h3>
+            @if (related.Count == 0)
+            {
+                <p>No other registered devices on this node.</p>
+            }
+            else
+            {
+                <ul>
+                    @foreach (var neighbour in related)
+                    {
+                        <li>
+                            <a href="telemetry/devices/@neighbour.Id">@neighbour.Id</a>
+                            · @neighbour.Category · @neighbour.Health · @neighbour.Freshness
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string DeviceId { get; set; } = string.Empty;
+
+    private DeviceDetailResponse? detail;
+    private TelemetryHistoryResponse? latest;
+    private List<SensorResponse> related = [];
+    private string? loadError;
+    private bool notFound;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        notFound = false;
+        loadError = null;
+        detail = null;
+        latest = null;
+        related = [];
+
+        try
+        {
+            var encoded = Uri.EscapeDataString(DeviceId);
+            using var response = await Http.GetAsync($"api/sensors/{encoded}");
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                notFound = true;
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+            detail = await response.Content.ReadFromJsonAsync<DeviceDetailResponse>(GatewayJson.Options);
+            if (detail is null)
+            {
+                loadError = "The gateway returned an empty device payload.";
+                return;
+            }
+
+            latest = await Http.GetFromJsonAsync<TelemetryHistoryResponse>(
+                $"api/sensors/{encoded}/history?take=1",
+                GatewayJson.Options);
+
+            var neighbours = await Http.GetFromJsonAsync<SensorListResponse>(
+                $"api/sensors?locationNodeId={Uri.EscapeDataString(detail.Sensor.LocationNodeId)}",
+                GatewayJson.Options);
+            related = (neighbours?.Sensors ?? [])
+                .Where(sensor => !string.Equals(sensor.Id, DeviceId, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+        catch (HttpRequestException)
+        {
+            loadError = "Gateway unreachable. Start SmartX.Api (http://localhost:5015) and reload.";
+        }
+        catch (Exception)
+        {
+            loadError = "Device details could not be loaded from the gateway.";
+        }
+    }
+
+    private string LatestValueText
+    {
+        get
+        {
+            if (latest is null)
+            {
+                return "No telemetry stored yet.";
+            }
+
+            if (latest.Environmental.Count > 0)
+            {
+                var packet = latest.Environmental[0];
+                return $"{packet.Payload.Value:0.###} {packet.Payload.Metric} · seq {packet.Sequence} · {packet.Timestamp:u}";
+            }
+
+            if (latest.Power.Count > 0)
+            {
+                var packet = latest.Power[0];
+                return $"{packet.Payload.Value} {packet.Payload.Metric} · seq {packet.Sequence} · {packet.Timestamp:u}";
+            }
+
+            if (latest.Actuator.Count > 0)
+            {
+                var packet = latest.Actuator[0];
+                return $"{packet.Payload.Kind} {(packet.Payload.IsActive ? "active" : "inactive")} · seq {packet.Sequence} · {packet.Timestamp:u}";
+            }
+
+            return "No telemetry stored yet.";
+        }
+    }
+
+    private string ThresholdText
+    {
+        get
+        {
+            if (latest?.Environmental.Count > 0)
+            {
+                return latest.Environmental[0].Payload.Metric switch
+                {
+                    EnvironmentalMetric.Temperature => "Temperature: Normal 18–26 °C; warning 10–18 / 26–40; critical outside that (valid packet range −20–80).",
+                    EnvironmentalMetric.Moisture => "Moisture: Normal 40–70%; warning 25–40 / 70–85; critical outside that.",
+                    EnvironmentalMetric.Ph => "pH: Normal 5.5–6.5; warning 5.0–5.5 / 6.5–7.2; critical outside that (valid 0–14).",
+                    _ => "Unknown environmental metric."
+                };
+            }
+
+            if (latest?.Power.Count > 0)
+            {
+                return latest.Power[0].Payload.Metric == PowerMetric.Watts
+                    ? "Watts: warning above 3000 W; critical above 8000 W."
+                    : "Watt-hours are informational (not an exception band).";
+            }
+
+            if (detail?.ExpectedIsActive is { } expected)
+            {
+                return expected
+                    ? "Actuator is commanded active/open. A closed reading is classified Critical (stuck)."
+                    : "Actuator is commanded inactive/closed. An open reading is classified Critical (stuck).";
+            }
+
+            return "No actuator command state is configured for this device.";
+        }
+    }
+}

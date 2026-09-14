@@ -1,0 +1,81 @@
+.device-kicker {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5b6472;
+}
+
+.device-header h1 {
+    margin: 0.4rem 0 0.4rem;
+    font-size: 1.5rem;
+}
+
+.device-lead {
+    max-width: 44rem;
+    color: #4a5563;
+}
+
+.device-error {
+    color: #b42318;
+    font-weight: 600;
+}
+
+.status-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+.panel {
+    border: 1px solid #cfd6df;
+    background: #fff;
+    padding: 0.85rem 0.95rem;
+}
+
+.panel h2,
+.panel h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #5b6472;
+}
+
+.panel h3 {
+    margin-top: 0.75rem;
+}
+
+.panel dl div {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.15rem 0;
+}
+
+.panel dt {
+    color: #5b6472;
+}
+
+.panel dd {
+    margin: 0;
+    font-weight: 600;
+    text-align: right;
+}
+
+.hint {
+    color: #5b6472;
+    font-size: 0.85rem;
+}
+
+.reject-list {
+    margin: 0.5rem 0 0;
+    padding-left: 1.1rem;
+    font-size: 0.85rem;
+}
+
+.panel ul {
+    margin: 0;
+    padding-left: 1.1rem;
+}
