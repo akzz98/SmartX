@@ -2,7 +2,7 @@
 
 Use this file as the only sequence until the current implementation is finished. Tick an item `[x]` only after it has been built or tested. Work **one unchecked item at a time**. Do not generate the whole application in one pass.
 
-**Current checkpoint:** Stage 1.3 template cleanup complete except your commit. Next: you commit, then first shared IoT concepts (sensor category enum).
+**Current checkpoint:** Stage 1.3 shared models. Next: location/deployment identity types.
 
 ---
 
@@ -57,13 +57,13 @@ Do not dump every domain type in one step.
 - [x] Remove Blazor template pages that are not Smart-X (`Counter.razor`, `Weather.razor`, related nav links, `wwwroot/sample-data/weather.json` if unused).
 - [x] Leave a minimal compilable client shell (layout + home placeholder) so the solution still runs.
 - [x] Build the solution.
-- [ ] Commit: remove default template sample code.
+- [x] Commit: remove default template sample code.
 
 ### First shared IoT concepts
 
-- [ ] Add sensor category enum (e.g. Environmental, Power Consumption, Actuator).
-- [ ] Add health/exception state enum (normal, warning, critical/abnormal, invalid).
-- [ ] Add freshness/connectivity enum (live, aging, stale, disconnected).
+- [x] Add sensor category enum (e.g. Environmental, Power Consumption, Actuator).
+- [x] Add health/exception state enum (normal, warning, critical/abnormal, invalid).
+- [x] Add freshness/connectivity enum (live, aging, stale, disconnected).
 - [ ] Add location/deployment identity types needed for nested site → zone → node trees.
 - [ ] Add sensor/device identity (MAC / unique ID, location, category, timestamps).
 - [ ] Build the solution.
