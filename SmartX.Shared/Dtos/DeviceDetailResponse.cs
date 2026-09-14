@@ -13,4 +13,7 @@ public sealed class DeviceDetailResponse
 
     /// <summary>Current − previous environmental sample (operator -), for spike investigation.</summary>
     public EnvironmentalReading? LatestEnvironmentalDelta { get; set; }
+
+    /// <summary>Packet volume and last sequence from the SensorFleet collection.</summary>
+    public DeviceIngestState? Ingest { get; set; }
 }

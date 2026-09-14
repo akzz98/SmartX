@@ -176,7 +176,8 @@ public sealed class SensorsController : ControllerBase
             Sensor = SensorDtoMapper.ToResponse(device),
             LocationName = location?.Name,
             LocationLevel = location?.Level,
-            LatestEnvironmentalDelta = EnvironmentalDelta.Latest(environmental)
+            LatestEnvironmentalDelta = EnvironmentalDelta.Latest(environmental),
+            Ingest = await _store.GetIngestStateAsync(device.Id, cancellationToken)
         });
     }
 

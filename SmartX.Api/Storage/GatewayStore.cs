@@ -23,7 +23,8 @@ public sealed class GatewayStore
 
     public List<DeploymentNode> DeploymentRoots { get; }
 
-    public List<SensorDevice> Sensors { get; } = [];
+    /// <summary>Custom fleet collection: lookup + ingest counters, not a bare List.</summary>
+    public SensorFleet Fleet { get; } = new();
 
     // Separate typed buffers — never List<object> — so float/int/bool packets stay unboxed.
     public List<TelemetryPacket<EnvironmentalReading>> EnvironmentalPackets { get; } = [];
@@ -47,7 +48,7 @@ public sealed class GatewayStore
         lock (_gate)
         {
             RefreshFreshnessLocked();
-            return Sensors.ToList();
+            return Fleet.Snapshot();
         }
     }
 
@@ -61,21 +62,7 @@ public sealed class GatewayStore
     {
         lock (_gate)
         {
-            if (Sensors.Any(existing => string.Equals(existing.MacAddress, device.MacAddress, StringComparison.OrdinalIgnoreCase)))
-            {
-                error = "A sensor with this MAC address is already registered.";
-                return false;
-            }
-
-            if (Sensors.Any(existing => string.Equals(existing.Id, device.Id, StringComparison.OrdinalIgnoreCase)))
-            {
-                error = "A sensor with this device id is already registered.";
-                return false;
-            }
-
-            Sensors.Add(device);
-            error = null;
-            return true;
+            return Fleet.TryAdd(device, out error);
         }
     }
 
@@ -157,8 +144,7 @@ public sealed class GatewayStore
                 return false;
             }
 
-            var device = Sensors.FirstOrDefault(sensor =>
-                string.Equals(sensor.Id, packet.DeviceId, StringComparison.OrdinalIgnoreCase));
+            var device = Fleet.FindById(packet.DeviceId);
 
             if (device is null)
             {
@@ -175,6 +161,7 @@ public sealed class GatewayStore
             device.LastSeenAt = packet.Timestamp == default ? DateTimeOffset.UtcNow : packet.Timestamp;
             device.Health = classify(packet.Payload, device);
             device.Freshness = TelemetryFreshnessClassifier.Classify(device.LastSeenAt, DateTimeOffset.UtcNow);
+            Fleet.RecordIngest(device.Id, packet.Sequence, device.LastSeenAt.Value);
             error = null;
             return true;
         }
@@ -184,8 +171,7 @@ public sealed class GatewayStore
     {
         lock (_gate)
         {
-            var device = Sensors.FirstOrDefault(sensor =>
-                string.Equals(sensor.Id, id, StringComparison.OrdinalIgnoreCase));
+            var device = Fleet.FindById(id);
             if (device is not null)
             {
                 device.Freshness = TelemetryFreshnessClassifier.Classify(device.LastSeenAt, DateTimeOffset.UtcNow);
@@ -201,10 +187,24 @@ public sealed class GatewayStore
         return Task.FromResult(FindSensor(id));
     }
 
+    public DeviceIngestState? GetIngestState(string id)
+    {
+        lock (_gate)
+        {
+            return Fleet.GetIngestState(id);
+        }
+    }
+
+    public Task<DeviceIngestState?> GetIngestStateAsync(string id, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(GetIngestState(id));
+    }
+
     private void RefreshFreshnessLocked()
     {
         var now = DateTimeOffset.UtcNow;
-        foreach (var sensor in Sensors)
+        foreach (var sensor in Fleet)
         {
             sensor.Freshness = TelemetryFreshnessClassifier.Classify(sensor.LastSeenAt, now);
         }
