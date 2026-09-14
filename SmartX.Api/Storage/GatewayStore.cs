@@ -22,6 +22,7 @@ public sealed class GatewayStore
         }
 
         FleetSeeder.SeedDevices(this);
+        TelemetryStreamSeeder.SeedNormalStreams(this);
     }
 
     public List<DeploymentNode> DeploymentRoots { get; }

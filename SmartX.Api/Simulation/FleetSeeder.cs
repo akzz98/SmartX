@@ -5,7 +5,7 @@ namespace SmartX.Api.Simulation;
 
 /// <summary>
 /// Registers a mixed ESP32 fleet across hydroponic racks and utility nodes.
-/// Packets (normal, spike, dropout) are seeded in later.
+/// Packets are seeded afterwards by TelemetryStreamSeeder (normal first, then faults).
 /// </summary>
 public static class FleetSeeder
 {
