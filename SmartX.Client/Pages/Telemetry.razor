@@ -1,14 +1,121 @@
 @page "/telemetry"
+@inject HttpClient Http
 
-@* Enabled startup-menu target. Progressive Disclosure pages replace this shell in Stage 8. *@
+@* Progressive Disclosure level 0: which devices need attention? Counts and roll-ups only. *@
 
-<PageTitle>Sensor Data Ingestion and Telemetry</PageTitle>
+<PageTitle>Fleet overview — Smart-X</PageTitle>
 
-<h1>Sensor Data Ingestion and Telemetry</h1>
-<p>
-    This pillar is in scope for Part 1 Task 2. The overview, filters, device details, and history
-    attach here next.
-</p>
-<p>
-    <a href="">Back to startup menu</a>
-</p>
+<section class="overview">
+    <header class="overview-header">
+        <p class="overview-kicker">Progressive Disclosure · level 0</p>
+        <h1>Fleet overview</h1>
+        <p class="overview-lead">
+            Which devices need attention? Stale and disconnected ESP32s stay listed; they are not hidden.
+        </p>
+    </header>
+
+    @if (loadError is not null)
+    {
+        <p class="overview-error" role="alert">@loadError</p>
+    }
+    else if (summary is null)
+    {
+        <p>Loading gateway summary…</p>
+    }
+    else
+    {
+        <div class="kpi-grid">
+            <article class="kpi">
+                <span class="kpi-label">Devices</span>
+                <span class="kpi-value">@summary.DeviceCount</span>
+            </article>
+            <article class="kpi kpi-alert">
+                <span class="kpi-label">Exceptions</span>
+                <span class="kpi-value">@summary.ExceptionCount</span>
+            </article>
+            <article class="kpi kpi-stale">
+                <span class="kpi-label">Stale / disconnected</span>
+                <span class="kpi-value">@summary.StaleOrDisconnectedCount</span>
+            </article>
+            <article class="kpi">
+                <span class="kpi-label">Rejected packets</span>
+                <span class="kpi-value">@summary.RejectedPacketCount</span>
+            </article>
+            <article class="kpi">
+                <span class="kpi-label">Combined site watts</span>
+                <span class="kpi-value">@summary.CombinedSiteWatts</span>
+            </article>
+        </div>
+
+        <div class="rollup-grid">
+            <Rollup Title="Health" Rows="summary.ByHealth" />
+            <Rollup Title="Freshness" Rows="summary.ByFreshness" />
+            <Rollup Title="Category" Rows="summary.ByCategory" />
+            <Rollup Title="Location" Rows="summary.ByLocation" />
+        </div>
+
+        <h2>Needs attention</h2>
+        @if (attention.Count == 0)
+        {
+            <p>No health or connectivity exceptions in this snapshot.</p>
+        }
+        else
+        {
+            <table class="attention-table">
+                <thead>
+                    <tr>
+                        <th>Device</th>
+                        <th>Location</th>
+                        <th>Category</th>
+                        <th>Health</th>
+                        <th>Freshness</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var sensor in attention)
+                    {
+                        <tr>
+                            <td>@sensor.Id</td>
+                            <td>@sensor.LocationNodeId</td>
+                            <td>@sensor.Category</td>
+                            <td class="state-@sensor.Health.ToString().ToLowerInvariant()">@sensor.Health</td>
+                            <td class="state-@sensor.Freshness.ToString().ToLowerInvariant()">@sensor.Freshness</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+</section>
+
+@code {
+    private FleetSummaryResponse? summary;
+    private List<SensorResponse> attention = [];
+    private string? loadError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            summary = await Http.GetFromJsonAsync<FleetSummaryResponse>("api/sensors/summary", GatewayJson.Options);
+            var list = await Http.GetFromJsonAsync<SensorListResponse>("api/sensors", GatewayJson.Options);
+            attention = (list?.Sensors ?? [])
+                .Where(NeedsAttention)
+                .OrderByDescending(sensor => sensor.Health)
+                .ThenByDescending(sensor => sensor.Freshness)
+                .ToList();
+        }
+        catch (HttpRequestException)
+        {
+            loadError = "Gateway unreachable. Start SmartX.Api (http://localhost:5015) and reload.";
+        }
+        catch (Exception)
+        {
+            loadError = "The overview could not be loaded from the gateway.";
+        }
+    }
+
+    private static bool NeedsAttention(SensorResponse sensor)
+        => sensor.Health is not HealthState.Normal
+           || sensor.Freshness is FreshnessState.Stale or FreshnessState.Disconnected;
+}

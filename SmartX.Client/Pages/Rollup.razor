@@ -1,0 +1,29 @@
+@* Shared roll-up list for overview counts (health, freshness, location, category). *@
+
+<section class="rollup">
+    <h2>@Title</h2>
+    @if (Rows.Count == 0)
+    {
+        <p>None</p>
+    }
+    else
+    {
+        <dl>
+            @foreach (var row in Rows.OrderByDescending(pair => pair.Value))
+            {
+                <div class="rollup-row">
+                    <dt>@row.Key</dt>
+                    <dd>@row.Value</dd>
+                </div>
+            }
+        </dl>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public Dictionary<string, int> Rows { get; set; } = new();
+}
