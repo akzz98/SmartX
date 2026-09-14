@@ -46,6 +46,7 @@ public sealed class TelemetryController : ControllerBase
     {
         if (packet is null)
         {
+            await _store.RecordRejectionAsync(string.Empty, ["Telemetry packet is required."], cancellationToken);
             return BadRequest(Fail(string.Empty, ["Telemetry packet is required."]));
         }
 
@@ -55,6 +56,7 @@ public sealed class TelemetryController : ControllerBase
         var validation = validate(packet, device);
         if (!validation.IsValid)
         {
+            await _store.RecordRejectionAsync(packet.DeviceId, validation.Errors, cancellationToken);
             var status = device is null && !string.IsNullOrWhiteSpace(packet.DeviceId)
                 ? StatusCodes.Status404NotFound
                 : StatusCodes.Status400BadRequest;

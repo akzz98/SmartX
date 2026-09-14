@@ -12,6 +12,9 @@ public sealed class FleetSummaryResponse
 
     public int StaleOrDisconnectedCount { get; set; }
 
+    /// <summary>Packets the validator refused. These never enter typed history.</summary>
+    public int RejectedPacketCount { get; set; }
+
     public Dictionary<string, int> ByCategory { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public Dictionary<string, int> ByLocation { get; set; } = new(StringComparer.OrdinalIgnoreCase);

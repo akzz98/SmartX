@@ -26,6 +26,7 @@ public sealed class GatewayStore
         TelemetryFaultSeeder.SeedTemperatureSpike(this);
         TelemetryFaultSeeder.SeedStuckActuator(this);
         TelemetryFaultSeeder.SeedSilentSensor(this);
+        TelemetryFaultSeeder.SeedMalformedPackets(this);
     }
 
     public List<DeploymentNode> DeploymentRoots { get; }
@@ -49,6 +50,9 @@ public sealed class GatewayStore
 
     // Raw sequential batches land here as arrays before they are queried as List<T>.
     public RawTelemetryBatches RawBatches { get; } = new();
+
+    // Refused packets stay out of the typed buffers; operators still see that garbage arrived.
+    public List<TelemetryRejection> Rejections { get; } = [];
 
     public IReadOnlyList<SensorDevice> SnapshotSensors()
     {
@@ -206,6 +210,64 @@ public sealed class GatewayStore
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(GetIngestState(id));
+    }
+
+    /// <summary>
+    /// Records a validator rejection. Last-seen and history do not change — a CRC failure is not a heartbeat.
+    /// A known device is marked Invalid so the overview can show the exception.
+    /// </summary>
+    public void RecordRejection(string deviceId, IEnumerable<string> errors)
+    {
+        lock (_gate)
+        {
+            Rejections.Add(new TelemetryRejection
+            {
+                DeviceId = deviceId,
+                RejectedAt = DateTimeOffset.UtcNow,
+                Errors = [.. errors]
+            });
+
+            if (string.IsNullOrWhiteSpace(deviceId))
+            {
+                return;
+            }
+
+            var device = Fleet.FindById(deviceId);
+            if (device is not null)
+            {
+                device.Health = HealthState.Invalid;
+            }
+        }
+    }
+
+    public Task RecordRejectionAsync(string deviceId, IEnumerable<string> errors, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        RecordRejection(deviceId, errors);
+        return Task.CompletedTask;
+    }
+
+    public IReadOnlyList<TelemetryRejection> SnapshotRejections(string? deviceId = null)
+    {
+        lock (_gate)
+        {
+            IEnumerable<TelemetryRejection> rows = Rejections;
+            if (!string.IsNullOrWhiteSpace(deviceId))
+            {
+                rows = rows.Where(row =>
+                    string.Equals(row.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return rows.ToList();
+        }
+    }
+
+    public Task<IReadOnlyList<TelemetryRejection>> SnapshotRejectionsAsync(
+        string? deviceId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(SnapshotRejections(deviceId));
     }
 
     private void RefreshFreshnessLocked()

@@ -125,4 +125,76 @@ public static class TelemetryFaultSeeder
 
         TelemetryStreamSeeder.SeedHealthyStream(store, device, lastSampleAt, new Random(7112));
     }
+
+    public const string MalformedPacketDeviceId = "sx-env-rack3-ph";
+
+    /// <summary>
+    /// Runs garbage ESP32 frames through the same validator as POST /api/telemetry.
+    /// Rejected packets are not ingested; the device is marked Invalid.
+    /// </summary>
+    public static void SeedMalformedPackets(GatewayStore store)
+    {
+        var now = DateTimeOffset.UtcNow;
+        RejectEnvironmental(store, new TelemetryPacket<EnvironmentalReading>
+        {
+            DeviceId = MalformedPacketDeviceId,
+            Timestamp = now,
+            Sequence = 200,
+            Payload = new EnvironmentalReading(16.5f, EnvironmentalMetric.Ph)
+        });
+        RejectEnvironmental(store, new TelemetryPacket<EnvironmentalReading>
+        {
+            DeviceId = MalformedPacketDeviceId,
+            Timestamp = now,
+            Sequence = 201,
+            Payload = new EnvironmentalReading(float.NaN, EnvironmentalMetric.Ph)
+        });
+        RejectEnvironmental(store, new TelemetryPacket<EnvironmentalReading>
+        {
+            DeviceId = MalformedPacketDeviceId,
+            Timestamp = default,
+            Sequence = 202,
+            Payload = new EnvironmentalReading(6.0f, EnvironmentalMetric.Ph)
+        });
+        RejectEnvironmental(store, new TelemetryPacket<EnvironmentalReading>
+        {
+            DeviceId = string.Empty,
+            Timestamp = now,
+            Sequence = 1,
+            Payload = new EnvironmentalReading(22f, EnvironmentalMetric.Temperature)
+        });
+        RejectEnvironmental(store, new TelemetryPacket<EnvironmentalReading>
+        {
+            DeviceId = "sx-ghost-node",
+            Timestamp = now,
+            Sequence = 1,
+            Payload = new EnvironmentalReading(22f, EnvironmentalMetric.Temperature)
+        });
+
+        var envDevice = store.FindSensor(MalformedPacketDeviceId);
+        var mismatched = new TelemetryPacket<PowerReading>
+        {
+            DeviceId = MalformedPacketDeviceId,
+            Timestamp = now,
+            Sequence = 203,
+            Payload = new PowerReading(400, PowerMetric.Watts)
+        };
+        Reject(store, TelemetryPacketValidator.Validate(mismatched, envDevice), mismatched.DeviceId);
+    }
+
+    private static void RejectEnvironmental(GatewayStore store, TelemetryPacket<EnvironmentalReading> packet)
+    {
+        var device = string.IsNullOrWhiteSpace(packet.DeviceId) ? null : store.FindSensor(packet.DeviceId);
+        Reject(store, TelemetryPacketValidator.Validate(packet, device), packet.DeviceId);
+    }
+
+    private static void Reject(GatewayStore store, ValidationResult validation, string deviceId)
+    {
+        if (validation.IsValid)
+        {
+            throw new InvalidOperationException($"Malformed seed for '{deviceId}' was accepted; the validator should have refused it.");
+        }
+
+        store.RecordRejection(deviceId, validation.Errors);
+    }
 }

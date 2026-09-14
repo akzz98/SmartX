@@ -16,4 +16,7 @@ public sealed class DeviceDetailResponse
 
     /// <summary>Packet volume and last sequence from the SensorFleet collection.</summary>
     public DeviceIngestState? Ingest { get; set; }
+
+    /// <summary>Malformed packets for this device that the gateway refused to store.</summary>
+    public List<TelemetryRejection> Rejections { get; set; } = [];
 }

@@ -70,6 +70,7 @@ public sealed class SensorsController : ControllerBase
     {
         var sensors = await _store.SnapshotSensorsAsync(cancellationToken);
         var powerPackets = await _store.SnapshotPowerPacketsAsync(cancellationToken);
+        var rejections = await _store.SnapshotRejectionsAsync(deviceId: null, cancellationToken);
         var combinedWatts = PowerLoadAggregator.CombinedLatestWatts(powerPackets);
         var wattDelta = PowerLoadAggregator.LatestWattDelta(powerPackets);
         var summary = new FleetSummaryResponse
@@ -79,6 +80,7 @@ public sealed class SensorsController : ControllerBase
                 sensor.Health is HealthState.Warning or HealthState.Critical or HealthState.Invalid),
             StaleOrDisconnectedCount = sensors.Count(sensor =>
                 sensor.Freshness is FreshnessState.Stale or FreshnessState.Disconnected),
+            RejectedPacketCount = rejections.Count,
             CombinedSiteWatts = combinedWatts.Value,
             LatestWattDelta = wattDelta?.Value
         };
@@ -171,13 +173,15 @@ public sealed class SensorsController : ControllerBase
 
         var location = DeploymentTree.Find(_store.DeploymentRoots, device.LocationNodeId);
         var environmental = await _store.SnapshotEnvironmentalPacketsAsync(device.Id, cancellationToken);
+        var rejections = await _store.SnapshotRejectionsAsync(device.Id, cancellationToken);
         return Ok(new DeviceDetailResponse
         {
             Sensor = SensorDtoMapper.ToResponse(device),
             LocationName = location?.Name,
             LocationLevel = location?.Level,
             LatestEnvironmentalDelta = EnvironmentalDelta.Latest(environmental),
-            Ingest = await _store.GetIngestStateAsync(device.Id, cancellationToken)
+            Ingest = await _store.GetIngestStateAsync(device.Id, cancellationToken),
+            Rejections = [.. rejections]
         });
     }
 
