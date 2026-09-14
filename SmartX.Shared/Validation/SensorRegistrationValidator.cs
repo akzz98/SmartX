@@ -57,7 +57,7 @@ public static class SensorRegistrationValidator
         }
         else
         {
-            var location = FindNode(deploymentRoots, registration.LocationNodeId.Trim());
+            var location = DeploymentTree.Find(deploymentRoots, registration.LocationNodeId.Trim());
             if (location is null)
             {
                 result.AddError("Deployment location is not in the site → zone → node tree.");
@@ -70,43 +70,5 @@ public static class SensorRegistrationValidator
         }
 
         return result;
-    }
-
-    // A deployment can have several sites (roots). Search each tree until the id is found.
-    private static DeploymentNode? FindNode(IEnumerable<DeploymentNode> roots, string id)
-    {
-        foreach (var root in roots)
-        {
-            var match = FindNode(root, id);
-            if (match is not null)
-            {
-                return match;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Recursively searches one deployment tree.
-    /// Base case: this node's id matches, or it has no remaining children that match.
-    /// </summary>
-    private static DeploymentNode? FindNode(DeploymentNode node, string id)
-    {
-        if (string.Equals(node.Id, id, StringComparison.OrdinalIgnoreCase))
-        {
-            return node;
-        }
-
-        foreach (var child in node.Children)
-        {
-            var match = FindNode(child, id);
-            if (match is not null)
-            {
-                return match;
-            }
-        }
-
-        return null;
     }
 }

@@ -1,0 +1,13 @@
+namespace SmartX.Shared;
+
+/// <summary>
+/// Progressive Disclosure level 2: one device plus where it sits in the deployment tree.
+/// </summary>
+public sealed class DeviceDetailResponse
+{
+    public SensorResponse Sensor { get; set; } = new();
+
+    public string? LocationName { get; set; }
+
+    public DeploymentLevel? LocationLevel { get; set; }
+}

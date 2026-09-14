@@ -17,4 +17,9 @@ public sealed class SensorDevice
     public DateTimeOffset RegisteredAt { get; set; }
 
     public DateTimeOffset? LastSeenAt { get; set; }
+
+    // Gateway-classified; the dashboard only displays these.
+    public HealthState Health { get; set; } = HealthState.Normal;
+
+    public FreshnessState Freshness { get; set; } = FreshnessState.Disconnected;
 }

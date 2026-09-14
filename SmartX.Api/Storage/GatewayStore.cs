@@ -91,4 +91,53 @@ public sealed class GatewayStore
             return true;
         }
     }
+
+    public SensorDevice? FindSensor(string id)
+    {
+        lock (_gate)
+        {
+            return Sensors.FirstOrDefault(sensor =>
+                string.Equals(sensor.Id, id, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    public TelemetryHistoryResponse HistoryFor(SensorDevice device, int take)
+    {
+        lock (_gate)
+        {
+            var history = new TelemetryHistoryResponse
+            {
+                DeviceId = device.Id,
+                Category = device.Category
+            };
+
+            switch (device.Category)
+            {
+                case SensorCategory.Environmental:
+                    history.Environmental = Latest(EnvironmentalPackets, device.Id, take);
+                    break;
+                case SensorCategory.PowerConsumption:
+                    history.Power = Latest(PowerPackets, device.Id, take);
+                    break;
+                case SensorCategory.Actuator:
+                    history.Actuator = Latest(ActuatorPackets, device.Id, take);
+                    break;
+            }
+
+            return history;
+        }
+    }
+
+    private static List<TelemetryPacket<T>> Latest<T>(
+        List<TelemetryPacket<T>> buffer,
+        string deviceId,
+        int take)
+        where T : struct
+    {
+        return buffer
+            .Where(packet => string.Equals(packet.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(packet => packet.Timestamp)
+            .Take(take)
+            .ToList();
+    }
 }

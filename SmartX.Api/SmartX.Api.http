@@ -50,4 +50,16 @@ Content-Type: application/json
   }
 }
 
+### Fleet overview (Progressive Disclosure level 0)
+GET {{SmartX.Api_HostAddress}}/api/sensors/summary
+
+### Filter fleet by zone (includes descendant nodes)
+GET {{SmartX.Api_HostAddress}}/api/sensors?locationNodeId=zone-1&category=environmental
+
+### Device details
+GET {{SmartX.Api_HostAddress}}/api/sensors/sx-AABBCCDDEE01
+
+### Device history
+GET {{SmartX.Api_HostAddress}}/api/sensors/sx-AABBCCDDEE01/history?take=20
+
 ###
