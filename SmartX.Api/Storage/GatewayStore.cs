@@ -528,6 +528,23 @@ public sealed class GatewayStore
         device.Health = classify(packet.Payload, device);
         device.Freshness = TelemetryFreshnessClassifier.Classify(device.LastSeenAt, DateTimeOffset.UtcNow);
         Fleet.RecordIngest(device.Id, packet.Sequence, device.LastSeenAt.Value);
+
+        // Recovery: healthy live reading clears HashSet keys so the next fault can alert again.
+        if (device.Health == HealthState.Normal && device.Freshness == FreshnessState.Live)
+        {
+            ActiveUniqueAlerts.ClearDevice(device.Id);
+        }
+    }
+
+    /// <summary>
+    /// Explicit recovery clear for a device (disconnect/error keys). Used by seeds and later UI.
+    /// </summary>
+    public int ClearUniqueAlertsForDevice(string deviceId)
+    {
+        lock (_gate)
+        {
+            return ActiveUniqueAlerts.ClearDevice(deviceId);
+        }
     }
 
     public SensorDevice? FindSensor(string id)

@@ -313,10 +313,7 @@ public static class TelemetryFaultSeeder
             throw new InvalidOperationException("Processed priority alert missing after moisture bypass seed.");
         }
 
-        // Drain the parked FIFO packet so the rest of the gateway sees a consistent fleet.
-        store.DrainPendingQueues();
-
-        // Same critical alert again — HashSet must suppress duplicate processing / UI spam.
+        // Same critical alert again while the key is still active — HashSet must suppress spam.
         var processedBeforeDuplicate = store.ProcessedPriorityAlerts.Count;
         var uniqueBeforeDuplicate = store.ActiveUniqueAlerts.Count;
         var acceptedDuplicate = store.RaisePriorityAlert(new PriorityAlert
@@ -337,6 +334,32 @@ public static class TelemetryFaultSeeder
             || store.ActiveUniqueAlerts.Count != uniqueBeforeDuplicate)
         {
             throw new InvalidOperationException("Duplicate alert changed processed list or unique set — suppression failed.");
+        }
+
+        // Drain the parked healthy moisture packet — recovery clears the HashSet key.
+        store.DrainPendingQueues();
+
+        if (store.ActiveUniqueAlerts.Contains(
+                UniqueAlertSet.ErrorKey(
+                    device.Id,
+                    "Critical moisture drop below 20% on rack 1 — irrigation risk; priority bypass")))
+        {
+            throw new InvalidOperationException("Unique alert key should clear after a healthy Live recovery reading.");
+        }
+
+        // After recovery, the same fault can alert again.
+        var acceptedAfterRecovery = store.RaisePriorityAlert(new PriorityAlert
+        {
+            DeviceId = device.Id,
+            MacAddress = device.MacAddress,
+            Severity = AlertSeverity.Critical,
+            Reason = "Critical moisture drop below 20% on rack 1 — irrigation risk; priority bypass",
+            RaisedAt = DateTimeOffset.UtcNow
+        });
+
+        if (!acceptedAfterRecovery)
+        {
+            throw new InvalidOperationException("After recovery clear, the moisture alert should be accepted again.");
         }
     }
 

@@ -32,6 +32,37 @@ public sealed class UniqueAlertSet
     public bool TryRemove(string key)
         => !string.IsNullOrWhiteSpace(key) && _active.Remove(key.Trim());
 
+    /// <summary>
+    /// Removes disconnect and error keys for one device after recovery so the next
+    /// real fault can alert again.
+    /// </summary>
+    public int ClearDevice(string deviceId)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            return 0;
+        }
+
+        var id = deviceId.Trim();
+        var disconnect = DisconnectKey(id);
+        var errorPrefix = $"error:{id}:";
+        var removed = 0;
+
+        foreach (var key in _active.ToArray())
+        {
+            if (key.Equals(disconnect, StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith(errorPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                if (_active.Remove(key))
+                {
+                    removed++;
+                }
+            }
+        }
+
+        return removed;
+    }
+
     public IReadOnlyCollection<string> Snapshot() => _active.ToArray();
 
     public static string DisconnectKey(string deviceId)
