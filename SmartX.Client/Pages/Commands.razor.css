@@ -22,6 +22,15 @@
     font-weight: 600;
 }
 
+.commands-ok {
+    color: var(--sx-normal);
+    font-weight: 600;
+}
+
+.commands-override {
+    margin-bottom: 1rem;
+}
+
 .commands .kpi-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));

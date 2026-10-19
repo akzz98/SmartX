@@ -50,6 +50,44 @@
         </div>
     </form>
 
+    <form class="sx-form commands-override" @onsubmit="IssueOverrideAsync" @onsubmit:preventDefault>
+        <label>
+            Actuator
+            <select @bind="overrideDeviceId">
+                <option value="">Select valve / pump / relay</option>
+                @foreach (var actuator in actuators)
+                {
+                    <option value="@actuator.Id">@actuator.Id</option>
+                }
+            </select>
+        </label>
+        <label>
+            Override
+            <select @bind="overrideKindText">
+                @foreach (var name in Enum.GetNames<CommandKind>())
+                {
+                    <option value="@name">@name</option>
+                }
+            </select>
+        </label>
+        <label>
+            Operator note
+            <input @bind="overrideNote" placeholder="optional" />
+        </label>
+        <div class="sx-form-actions">
+            <button type="submit" disabled="@issueBusy">Issue override</button>
+        </div>
+    </form>
+
+    @if (issueMessage is not null)
+    {
+        <p class="commands-ok" role="status">@issueMessage</p>
+    }
+    @if (issueError is not null)
+    {
+        <p class="commands-error" role="alert">@issueError</p>
+    }
+
     @if (loadError is not null)
     {
         <p class="commands-error" role="alert">@loadError</p>
@@ -200,11 +238,19 @@
 @code {
     private StreamSnapshotResponse? snapshot;
     private List<SensorResponse> filteredDevices = [];
+    private List<SensorResponse> actuators = [];
     private string? loadError;
 
     private string categoryText = string.Empty;
     private string healthText = string.Empty;
     private string alertScope = "any";
+
+    private string overrideDeviceId = "sx-act-rack2-valve";
+    private string overrideKindText = nameof(CommandKind.CloseValve);
+    private string overrideNote = string.Empty;
+    private bool issueBusy;
+    private string? issueMessage;
+    private string? issueError;
 
     protected override async Task OnInitializedAsync() => await ReloadAsync();
 
@@ -227,24 +273,94 @@
         await LoadFilteredDevicesAsync();
     }
 
+    private async Task IssueOverrideAsync()
+    {
+        issueMessage = null;
+        issueError = null;
+
+        if (string.IsNullOrWhiteSpace(overrideDeviceId))
+        {
+            issueError = "Select an actuator before issuing an override.";
+            return;
+        }
+
+        if (!Enum.TryParse<CommandKind>(overrideKindText, ignoreCase: true, out var kind))
+        {
+            issueError = "Command kind is not recognised.";
+            return;
+        }
+
+        issueBusy = true;
+        try
+        {
+            var request = new IssueCommandRequest
+            {
+                DeviceId = overrideDeviceId.Trim(),
+                Kind = kind,
+                OperatorNote = string.IsNullOrWhiteSpace(overrideNote) ? null : overrideNote.Trim()
+            };
+
+            using var response = await Http.PostAsJsonAsync("api/commands", request, GatewayJson.Options);
+            var payload = await response.Content.ReadFromJsonAsync<IssueCommandResponse>(GatewayJson.Options);
+
+            if (payload is null)
+            {
+                issueError = "Gateway returned an empty override response.";
+                return;
+            }
+
+            if (!payload.Succeeded)
+            {
+                issueError = string.Join(" ", payload.Errors);
+                return;
+            }
+
+            issueMessage =
+                $"Issued {payload.Command?.Kind} on {payload.Command?.DeviceId} " +
+                $"(target {(payload.Command?.TargetIsActive == true ? "active" : "inactive")}). Undo stack depth will refresh below.";
+            await ReloadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            issueError = "Gateway unreachable. Start SmartX.Api and try again.";
+        }
+        catch (Exception)
+        {
+            issueError = "The override could not be issued.";
+        }
+        finally
+        {
+            issueBusy = false;
+        }
+    }
+
     private async Task ReloadAsync()
     {
         loadError = null;
         try
         {
             snapshot = await Http.GetFromJsonAsync<StreamSnapshotResponse>("api/stream/snapshot", GatewayJson.Options);
+            var fleet = await Http.GetFromJsonAsync<SensorListResponse>("api/sensors?category=Actuator", GatewayJson.Options);
+            actuators = fleet?.Sensors ?? [];
+            if (actuators.Count > 0 && actuators.All(sensor => sensor.Id != overrideDeviceId))
+            {
+                overrideDeviceId = actuators[0].Id;
+            }
+
             await LoadFilteredDevicesAsync();
         }
         catch (HttpRequestException)
         {
             snapshot = null;
             filteredDevices = [];
+            actuators = [];
             loadError = "Gateway unreachable. Start SmartX.Api (http://localhost:5015) and reload.";
         }
         catch (Exception)
         {
             snapshot = null;
             filteredDevices = [];
+            actuators = [];
             loadError = "The command-stream page could not be loaded from the gateway.";
         }
     }
