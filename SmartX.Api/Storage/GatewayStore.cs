@@ -150,7 +150,8 @@ public sealed class GatewayStore
                 return FailIssue(errors);
             }
 
-            var device = Fleet.FindById(request.DeviceId.Trim());
+            // O(1) Dictionary resolve by id or MAC — no fleet scan.
+            var device = Fleet.ResolveLive(request.DeviceId);
             if (device is null)
             {
                 return FailIssue(["Device is not registered on this gateway."]);
@@ -301,7 +302,7 @@ public sealed class GatewayStore
                 return false;
             }
 
-            if (Fleet.FindById(deviceId) is null)
+            if (Fleet.ResolveLive(deviceId) is null)
             {
                 error = "Device is not registered on this gateway.";
                 return false;
