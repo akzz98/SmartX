@@ -40,4 +40,14 @@ public sealed class StreamController : ControllerBase
         return Task.FromResult<ActionResult<LiveAlertsResponse>>(
             Ok(StreamDtoMapper.ToLiveAlertsResponse(alerts)));
     }
+
+    /// <summary>
+    /// SortedDictionary timeline (oldest first) for command-stream history graphs.
+    /// </summary>
+    [HttpGet("timeline")]
+    public Task<ActionResult<TimelineHistoryResponse>> GetTimeline(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<ActionResult<TimelineHistoryResponse>>(Ok(_store.GetTimelineHistory()));
+    }
 }

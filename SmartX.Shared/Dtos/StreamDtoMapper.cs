@@ -42,6 +42,27 @@ public static class StreamDtoMapper
         };
     }
 
+    public static TimelineEntryResponse ToTimelineEntryResponse(
+        string kind,
+        DateTimeOffset timestamp,
+        string deviceId,
+        string macAddress,
+        string summary,
+        DeviceCommand? command,
+        PriorityAlert? alert)
+    {
+        return new TimelineEntryResponse
+        {
+            Kind = kind,
+            Timestamp = timestamp,
+            DeviceId = deviceId,
+            MacAddress = macAddress,
+            Summary = summary,
+            Command = command is null ? null : ToCommandResponse(command),
+            Alert = alert is null ? null : ToAlertResponse(alert)
+        };
+    }
+
     /// <summary>
     /// Resolves the commanded open/on flag for an override kind.
     /// ToggleRelay flips the previous expected position.

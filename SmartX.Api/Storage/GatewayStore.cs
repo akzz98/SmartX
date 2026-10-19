@@ -128,6 +128,32 @@ public sealed class GatewayStore
     }
 
     /// <summary>
+    /// Oldest-first timeline from the SortedDictionary log (ready for graphs).
+    /// </summary>
+    public TimelineHistoryResponse GetTimelineHistory()
+    {
+        lock (_gate)
+        {
+            var entries = Timeline.SnapshotOldestFirst()
+                .Select(e => StreamDtoMapper.ToTimelineEntryResponse(
+                    e.Kind.ToString().ToLowerInvariant(),
+                    e.Timestamp,
+                    e.DeviceId,
+                    e.MacAddress,
+                    e.Summary,
+                    e.Command,
+                    e.Alert))
+                .ToList();
+
+            return new TimelineHistoryResponse
+            {
+                Entries = entries,
+                TotalCount = entries.Count
+            };
+        }
+    }
+
+    /// <summary>
     /// Issues a manual override: push onto the undo stack and apply ExpectedIsActive on the actuator.
     /// </summary>
     public IssueCommandResponse TryIssueCommand(IssueCommandRequest request)
