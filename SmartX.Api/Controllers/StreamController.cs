@@ -60,4 +60,27 @@ public sealed class StreamController : ControllerBase
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult<ActionResult<TimelineHistoryResponse>>(Ok(_store.GetTimelineHistory()));
     }
+
+    /// <summary>
+    /// Records an operator filter/search so the predictive engine can learn sequences.
+    /// </summary>
+    [HttpPost("searches")]
+    public async Task<ActionResult<OperatorSearchEvent>> RecordSearch(
+        [FromBody] RecordSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        var recorded = await _store.RecordOperatorSearchAsync(request, cancellationToken);
+        return Ok(recorded);
+    }
+
+    /// <summary>
+    /// Proactive Suggested Actions / Automated Insights from search+command patterns and live faults.
+    /// </summary>
+    [HttpGet("suggestions")]
+    public async Task<ActionResult<SuggestionsResponse>> GetSuggestions(CancellationToken cancellationToken)
+    {
+        var suggestions = await _store.GetSuggestionsAsync(cancellationToken);
+        return Ok(suggestions);
+    }
 }
+

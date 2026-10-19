@@ -91,6 +91,44 @@
         <p class="commands-error" role="alert">@issueError</p>
     }
 
+    @if (suggestions is not null)
+    {
+        <article class="commands-panel commands-insights">
+            <h2>Suggested Actions / Automated Insights</h2>
+            <p class="commands-empty">
+                Pattern-scored from operator search history and manual commands
+                (@suggestions.SearchHistoryCount searches, @suggestions.SequencePairCount sequence pairs) —
+                not random tips.
+            </p>
+            @if (suggestions.Suggestions.Count == 0)
+            {
+                <p class="commands-empty">No insights yet. Apply filters or issue overrides to train the engine.</p>
+            }
+            else
+            {
+                <ul class="commands-suggestions">
+                    @foreach (var item in suggestions.Suggestions)
+                    {
+                        <li>
+                            <div>
+                                <strong>@item.Title</strong>
+                                <span class="commands-score">score @item.Score · @item.Kind</span>
+                                <p>@item.Detail</p>
+                            </div>
+                            @if (item.SuggestedCommand is { } cmd && !string.IsNullOrWhiteSpace(item.RelatedDeviceId))
+                            {
+                                <button type="button" class="commands-refresh"
+                                        @onclick="() => ApplySuggestion(item.RelatedDeviceId!, cmd)">
+                                    Use @cmd on @item.RelatedDeviceId
+                                </button>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+    }
+
     @if (loadError is not null)
     {
         <p class="commands-error" role="alert">@loadError</p>
@@ -307,6 +345,7 @@
 @code {
     private StreamSnapshotResponse? snapshot;
     private TimelineHistoryResponse? timeline;
+    private SuggestionsResponse? suggestions;
     private List<SensorResponse> filteredDevices = [];
     private List<SensorResponse> actuators = [];
     private string? loadError;
@@ -342,6 +381,51 @@
         }
 
         await LoadFilteredDevicesAsync();
+        await RecordSearchAsync();
+        await LoadSuggestionsAsync();
+    }
+
+    private void ApplySuggestion(string deviceId, CommandKind kind)
+    {
+        overrideDeviceId = deviceId;
+        overrideKindText = kind.ToString();
+        issueMessage = $"Suggestion applied: {kind} on {deviceId}. Click Issue override to send it.";
+        issueError = null;
+    }
+
+    private async Task RecordSearchAsync()
+    {
+        try
+        {
+            var related = filteredDevices.FirstOrDefault(sensor => HasUniqueAlert(sensor.Id))?.Id
+                          ?? filteredDevices.FirstOrDefault()?.Id;
+
+            var request = new RecordSearchRequest
+            {
+                CategoryFilter = string.IsNullOrWhiteSpace(categoryText) ? null : categoryText,
+                HealthFilter = string.IsNullOrWhiteSpace(healthText) ? null : healthText,
+                AlertScope = alertScope,
+                RelatedDeviceId = related
+            };
+
+            await Http.PostAsJsonAsync("api/stream/searches", request, GatewayJson.Options);
+        }
+        catch
+        {
+            // Search logging is best-effort; filters still apply.
+        }
+    }
+
+    private async Task LoadSuggestionsAsync()
+    {
+        try
+        {
+            suggestions = await Http.GetFromJsonAsync<SuggestionsResponse>("api/stream/suggestions", GatewayJson.Options);
+        }
+        catch
+        {
+            suggestions = null;
+        }
     }
 
     private async Task IssueOverrideAsync()
@@ -461,11 +545,13 @@
             }
 
             await LoadFilteredDevicesAsync();
+            await LoadSuggestionsAsync();
         }
         catch (HttpRequestException)
         {
             snapshot = null;
             timeline = null;
+            suggestions = null;
             filteredDevices = [];
             actuators = [];
             loadError = "Gateway unreachable. Start SmartX.Api (http://localhost:5015) and reload.";
@@ -474,6 +560,7 @@
         {
             snapshot = null;
             timeline = null;
+            suggestions = null;
             filteredDevices = [];
             actuators = [];
             loadError = "The command-stream page could not be loaded from the gateway.";

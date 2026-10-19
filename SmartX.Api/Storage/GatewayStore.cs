@@ -30,6 +30,7 @@ public sealed class GatewayStore
         TelemetryFaultSeeder.SeedLocationOutage(this);
         TelemetryFaultSeeder.SeedCriticalMoisturePriorityBypass(this);
         TelemetryFaultSeeder.SeedRecovery(this);
+        RecommendationSeeder.SeedOperatorPatterns(this);
     }
 
     public List<DeploymentNode> DeploymentRoots { get; }
@@ -49,8 +50,11 @@ public sealed class GatewayStore
     /// <summary>SortedDictionary-backed timeline for command-stream history graphs.</summary>
     public TimelineLog Timeline { get; } = new();
 
-    /// <summary>HashSet of unique active disconnect/error keys. Dedupe wired in Stage 6.2.</summary>
+    /// <summary>HashSet of unique active disconnect/error keys.</summary>
     public UniqueAlertSet ActiveUniqueAlerts { get; } = new();
+
+    /// <summary>Search/command sequence frequency map for Suggested Actions.</summary>
+    public RecommendationEngine Recommendations { get; } = new();
 
     /// <summary>Alerts already handled on the priority path (newest last).</summary>
     public List<PriorityAlert> ProcessedPriorityAlerts { get; } = [];
@@ -135,6 +139,40 @@ public sealed class GatewayStore
                 Keys = keys
             };
         }
+    }
+
+    public OperatorSearchEvent RecordOperatorSearch(RecordSearchRequest request)
+    {
+        lock (_gate)
+        {
+            return Recommendations.RecordSearch(request);
+        }
+    }
+
+    public Task<OperatorSearchEvent> RecordOperatorSearchAsync(
+        RecordSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(RecordOperatorSearch(request));
+    }
+
+    public SuggestionsResponse GetSuggestions()
+    {
+        lock (_gate)
+        {
+            RefreshFreshnessLocked();
+            return Recommendations.BuildSuggestions(
+                Fleet.Snapshot(),
+                ProcessedPriorityAlerts,
+                ActiveUniqueAlerts.Snapshot());
+        }
+    }
+
+    public Task<SuggestionsResponse> GetSuggestionsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(GetSuggestions());
     }
 
     public IReadOnlyList<PriorityAlert> SnapshotProcessedPriorityAlerts()
@@ -228,6 +266,7 @@ public sealed class GatewayStore
             CommandStack.Push(command);
             device.ExpectedIsActive = target;
             Timeline.AppendCommand(command);
+            Recommendations.RecordCommandIssued(command);
 
             return new IssueCommandResponse
             {
@@ -476,6 +515,11 @@ public sealed class GatewayStore
 
         ProcessedPriorityAlerts.Add(alert);
         Timeline.AppendAlert(alert);
+
+        var faultKey = alert.DeviceId.Contains("moist", StringComparison.OrdinalIgnoreCase)
+            ? "fault:moisture-critical"
+            : "fault:critical";
+        Recommendations.RecordFaultContext(alert.DeviceId, faultKey);
     }
 
     private void DrainStandardQueueLocked()
