@@ -262,4 +262,33 @@ public static class Part2DemoSeeder
             throw new InvalidOperationException("Demo undo did not restore the previous stack depth.");
         }
     }
+
+    /// <summary>
+    /// Bootstraps moisture → pump search/command patterns so Suggested Actions appear
+    /// immediately on a fresh API boot (no 20-minute manual warmup). README documents
+    /// GET /api/stream/suggestions and the /commands insights panel.
+    /// </summary>
+    public static void SeedRecommendationPatterns(GatewayStore store)
+    {
+        RecommendationSeeder.SeedOperatorPatterns(store);
+
+        var suggestions = store.GetSuggestions();
+        if (suggestions.SearchHistoryCount < 6 || suggestions.Suggestions.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "Recommendation bootstrap did not produce searchable history and suggestions for the demo.");
+        }
+
+        var hasPumpHint = suggestions.Suggestions.Any(s =>
+            (s.RelatedDeviceId?.Contains("pump", StringComparison.OrdinalIgnoreCase) ?? false)
+            || (s.SuggestedCommand == CommandKind.StartPump)
+            || s.Title.Contains("moisture", StringComparison.OrdinalIgnoreCase)
+            || s.Title.Contains("pump", StringComparison.OrdinalIgnoreCase));
+
+        if (!hasPumpHint)
+        {
+            throw new InvalidOperationException(
+                "Expected a moisture/pump related suggestion after recommendation bootstrap.");
+        }
+    }
 }

@@ -34,7 +34,7 @@ public sealed class GatewayStore
         TelemetryFaultSeeder.SeedCriticalMoisturePriorityBypass(this);
         Part2DemoSeeder.SeedCriticalPowerPriorityBypass(this);
         TelemetryFaultSeeder.SeedRecovery(this);
-        RecommendationSeeder.SeedOperatorPatterns(this);
+        Part2DemoSeeder.SeedRecommendationPatterns(this);
     }
 
     public List<DeploymentNode> DeploymentRoots { get; }
