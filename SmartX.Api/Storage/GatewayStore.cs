@@ -39,6 +39,12 @@ public sealed class GatewayStore
     /// <summary>Standard FIFO ingest queue. Packets enqueue here, then drain into typed buffers.</summary>
     public StandardTelemetryQueue StandardIngestQueue { get; } = new();
 
+    /// <summary>Critical alerts bypass the FIFO stream via this priority queue.</summary>
+    public CriticalAlertQueue PriorityAlertQueue { get; } = new();
+
+    /// <summary>Alerts already handled on the priority path (newest last).</summary>
+    public List<PriorityAlert> ProcessedPriorityAlerts { get; } = [];
+
     // Separate typed buffers — never List<object> — so float/int/bool packets stay unboxed.
     public List<TelemetryPacket<EnvironmentalReading>> EnvironmentalPackets { get; } = [];
 
@@ -149,10 +155,74 @@ public sealed class GatewayStore
             }
 
             StandardIngestQueue.Enqueue(item);
+            // Priority alerts always drain first so critical work bypasses FIFO backlog.
+            DrainPriorityAlertsLocked();
             DrainStandardQueueLocked();
             error = null;
             return true;
         }
+    }
+
+    /// <summary>
+    /// Raises an alert onto the priority queue and processes it immediately,
+    /// without waiting behind standard FIFO telemetry.
+    /// </summary>
+    public void RaisePriorityAlert(PriorityAlert alert)
+    {
+        ArgumentNullException.ThrowIfNull(alert);
+
+        lock (_gate)
+        {
+            if (string.IsNullOrWhiteSpace(alert.Id))
+            {
+                alert.Id = Guid.NewGuid().ToString("N");
+            }
+
+            if (alert.RaisedAt == default)
+            {
+                alert.RaisedAt = DateTimeOffset.UtcNow;
+            }
+
+            if (string.IsNullOrWhiteSpace(alert.MacAddress)
+                && !string.IsNullOrWhiteSpace(alert.DeviceId)
+                && Fleet.FindById(alert.DeviceId) is { } device)
+            {
+                alert.MacAddress = device.MacAddress;
+            }
+
+            PriorityAlertQueue.Enqueue(alert);
+            DrainPriorityAlertsLocked();
+        }
+    }
+
+    public Task RaisePriorityAlertAsync(PriorityAlert alert, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        RaisePriorityAlert(alert);
+        return Task.CompletedTask;
+    }
+
+    private void DrainPriorityAlertsLocked()
+    {
+        while (PriorityAlertQueue.TryDequeue(out var alert) && alert is not null)
+        {
+            ApplyPriorityAlertLocked(alert);
+        }
+    }
+
+    private void ApplyPriorityAlertLocked(PriorityAlert alert)
+    {
+        alert.IsProcessed = true;
+
+        if (!string.IsNullOrWhiteSpace(alert.DeviceId)
+            && Fleet.FindById(alert.DeviceId) is { } device
+            && alert.Severity == AlertSeverity.Critical)
+        {
+            // Critical bypass marks the device so the dashboard can investigate immediately.
+            device.Health = HealthState.Critical;
+        }
+
+        ProcessedPriorityAlerts.Add(alert);
     }
 
     private void DrainStandardQueueLocked()
