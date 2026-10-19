@@ -42,6 +42,16 @@ public sealed class StreamController : ControllerBase
     }
 
     /// <summary>
+    /// Currently active unique HashSet keys (disconnect/error) — no duplicate spam entries.
+    /// </summary>
+    [HttpGet("unique-alerts")]
+    public Task<ActionResult<UniqueAlertsResponse>> GetUniqueAlerts(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<ActionResult<UniqueAlertsResponse>>(Ok(_store.GetUniqueActiveAlerts()));
+    }
+
+    /// <summary>
     /// SortedDictionary timeline (oldest first) for command-stream history graphs.
     /// </summary>
     [HttpGet("timeline")]

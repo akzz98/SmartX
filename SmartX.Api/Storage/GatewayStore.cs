@@ -94,7 +94,7 @@ public sealed class GatewayStore
     }
 
     /// <summary>
-    /// Operator diagnostics for FIFO vs priority bypass. Undo / HashSet counts stay 0 until later stages.
+    /// Operator diagnostics for FIFO vs priority bypass, undo stack, and unique HashSet alerts.
     /// </summary>
     public StreamSnapshotResponse GetStreamSnapshot()
     {
@@ -106,18 +106,33 @@ public sealed class GatewayStore
                 : ProcessedPriorityAlerts.Skip(ProcessedPriorityAlerts.Count - recentTake);
 
             var recentCommands = CommandStack.SnapshotNewestFirst().Take(recentTake);
+            var uniqueKeys = ActiveUniqueAlerts.Snapshot().ToList();
 
             return new StreamSnapshotResponse
             {
                 StandardQueueDepth = StandardIngestQueue.Depth,
                 PriorityQueueDepth = PriorityAlertQueue.Depth,
                 UndoStackDepth = CommandStack.Depth,
-                UniqueActiveAlertCount = ActiveUniqueAlerts.Count,
+                UniqueActiveAlertCount = uniqueKeys.Count,
+                UniqueActiveAlertKeys = uniqueKeys,
                 LastStandardProcessedAt = StandardIngestQueue.LastDequeuedAt,
                 LastPriorityProcessedAt = PriorityAlertQueue.LastDequeuedAt,
                 LastPriorityBypassReason = PriorityAlertQueue.LastBypassReason,
                 RecentCommands = recentCommands.Select(StreamDtoMapper.ToCommandResponse).ToList(),
                 RecentAlerts = recentAlerts.Select(StreamDtoMapper.ToAlertResponse).ToList()
+            };
+        }
+    }
+
+    public UniqueAlertsResponse GetUniqueActiveAlerts()
+    {
+        lock (_gate)
+        {
+            var keys = ActiveUniqueAlerts.Snapshot().ToList();
+            return new UniqueAlertsResponse
+            {
+                Count = keys.Count,
+                Keys = keys
             };
         }
     }

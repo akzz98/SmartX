@@ -18,6 +18,9 @@ public sealed class StreamSnapshotResponse
     /// <summary>Unique active error / disconnect keys tracked in the HashSet.</summary>
     public int UniqueActiveAlertCount { get; set; }
 
+    /// <summary>HashSet keys currently active (e.g. error:sx-env-rack1-moist:…).</summary>
+    public List<string> UniqueActiveAlertKeys { get; set; } = [];
+
     public DateTimeOffset? LastStandardProcessedAt { get; set; }
 
     public DateTimeOffset? LastPriorityProcessedAt { get; set; }
