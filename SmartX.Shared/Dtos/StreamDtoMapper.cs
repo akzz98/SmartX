@@ -1,7 +1,7 @@
 namespace SmartX.Shared;
 
 /// <summary>
-/// Maps priority alerts (and later commands) onto command-stream DTOs.
+/// Maps priority alerts and manual overrides onto command-stream DTOs.
 /// </summary>
 public static class StreamDtoMapper
 {
@@ -26,4 +26,35 @@ public static class StreamDtoMapper
             Alerts = alerts.Select(ToAlertResponse).ToList()
         };
     }
+
+    public static CommandResponse ToCommandResponse(DeviceCommand command)
+    {
+        return new CommandResponse
+        {
+            Id = command.Id,
+            DeviceId = command.DeviceId,
+            MacAddress = command.MacAddress,
+            Kind = command.Kind,
+            TargetIsActive = command.TargetIsActive,
+            PreviousIsActive = command.PreviousIsActive,
+            IssuedAt = command.IssuedAt,
+            OperatorNote = command.OperatorNote
+        };
+    }
+
+    /// <summary>
+    /// Resolves the commanded open/on flag for an override kind.
+    /// ToggleRelay flips the previous expected position.
+    /// </summary>
+    public static bool ResolveTargetIsActive(CommandKind kind, bool? previousIsActive)
+    {
+        return kind switch
+        {
+            CommandKind.OpenValve or CommandKind.StartPump => true,
+            CommandKind.CloseValve or CommandKind.StopPump => false,
+            CommandKind.ToggleRelay => previousIsActive != true,
+            _ => previousIsActive == true
+        };
+    }
 }
+

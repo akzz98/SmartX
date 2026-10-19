@@ -99,6 +99,8 @@ public sealed class GatewayStore
                 ? ProcessedPriorityAlerts
                 : ProcessedPriorityAlerts.Skip(ProcessedPriorityAlerts.Count - recentTake);
 
+            var recentCommands = CommandStack.SnapshotNewestFirst().Take(recentTake);
+
             return new StreamSnapshotResponse
             {
                 StandardQueueDepth = StandardIngestQueue.Depth,
@@ -108,7 +110,7 @@ public sealed class GatewayStore
                 LastStandardProcessedAt = StandardIngestQueue.LastDequeuedAt,
                 LastPriorityProcessedAt = PriorityAlertQueue.LastDequeuedAt,
                 LastPriorityBypassReason = PriorityAlertQueue.LastBypassReason,
-                RecentCommands = [],
+                RecentCommands = recentCommands.Select(StreamDtoMapper.ToCommandResponse).ToList(),
                 RecentAlerts = recentAlerts.Select(StreamDtoMapper.ToAlertResponse).ToList()
             };
         }
@@ -121,6 +123,81 @@ public sealed class GatewayStore
             return [.. ProcessedPriorityAlerts];
         }
     }
+
+    /// <summary>
+    /// Issues a manual override: push onto the undo stack and apply ExpectedIsActive on the actuator.
+    /// </summary>
+    public IssueCommandResponse TryIssueCommand(IssueCommandRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        lock (_gate)
+        {
+            var errors = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(request.DeviceId))
+            {
+                errors.Add("Device id is required.");
+            }
+
+            if (!Enum.IsDefined(request.Kind))
+            {
+                errors.Add("Command kind is not recognised.");
+            }
+
+            if (errors.Count > 0)
+            {
+                return FailIssue(errors);
+            }
+
+            var device = Fleet.FindById(request.DeviceId.Trim());
+            if (device is null)
+            {
+                return FailIssue(["Device is not registered on this gateway."]);
+            }
+
+            if (device.Category != SensorCategory.Actuator)
+            {
+                return FailIssue(["Manual overrides only target Actuator-category devices (valves, pumps, relays)."]);
+            }
+
+            var previous = device.ExpectedIsActive;
+            var target = StreamDtoMapper.ResolveTargetIsActive(request.Kind, previous);
+            var command = new DeviceCommand
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                DeviceId = device.Id,
+                MacAddress = device.MacAddress,
+                Kind = request.Kind,
+                TargetIsActive = target,
+                PreviousIsActive = previous,
+                IssuedAt = DateTimeOffset.UtcNow,
+                OperatorNote = string.IsNullOrWhiteSpace(request.OperatorNote)
+                    ? null
+                    : request.OperatorNote.Trim()
+            };
+
+            CommandStack.Push(command);
+            device.ExpectedIsActive = target;
+
+            return new IssueCommandResponse
+            {
+                Succeeded = true,
+                Command = StreamDtoMapper.ToCommandResponse(command)
+            };
+        }
+    }
+
+    public Task<IssueCommandResponse> TryIssueCommandAsync(
+        IssueCommandRequest request,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(TryIssueCommand(request));
+    }
+
+    private static IssueCommandResponse FailIssue(List<string> errors)
+        => new() { Succeeded = false, Errors = errors };
 
     public bool TryAdd(SensorDevice device, out string? error)
     {
