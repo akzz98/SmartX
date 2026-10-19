@@ -9,6 +9,9 @@ public sealed class StreamSnapshotResponse
     /// <summary>Packets waiting in the standard FIFO ingest queue.</summary>
     public int StandardQueueDepth { get; set; }
 
+    /// <summary>Highest FIFO depth seen this process (seeded burst leaves this &gt; 0 after drain).</summary>
+    public int StandardQueuePeakDepth { get; set; }
+
     /// <summary>Critical alerts waiting in the priority bypass path.</summary>
     public int PriorityQueueDepth { get; set; }
 

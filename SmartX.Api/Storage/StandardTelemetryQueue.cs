@@ -11,6 +11,9 @@ public sealed class StandardTelemetryQueue
 
     public int Depth => _queue.Count;
 
+    /// <summary>Highest FIFO depth observed (e.g. after a seeded burst before drain).</summary>
+    public int PeakDepth { get; private set; }
+
     public long TotalEnqueued { get; private set; }
 
     public long TotalDequeued { get; private set; }
@@ -25,6 +28,10 @@ public sealed class StandardTelemetryQueue
         _queue.Enqueue(item);
         TotalEnqueued++;
         LastEnqueuedAt = item.EnqueuedAt;
+        if (_queue.Count > PeakDepth)
+        {
+            PeakDepth = _queue.Count;
+        }
     }
 
     public bool TryDequeue(out QueuedTelemetryItem? item)

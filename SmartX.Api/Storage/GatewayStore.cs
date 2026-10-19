@@ -23,6 +23,7 @@ public sealed class GatewayStore
 
         FleetSeeder.SeedDevices(this);
         TelemetryStreamSeeder.SeedNormalStreams(this);
+        Part2DemoSeeder.SeedFifoBurst(this);
         TelemetryFaultSeeder.SeedTemperatureSpike(this);
         TelemetryFaultSeeder.SeedStuckActuator(this);
         TelemetryFaultSeeder.SeedSilentSensor(this);
@@ -115,6 +116,7 @@ public sealed class GatewayStore
             return new StreamSnapshotResponse
             {
                 StandardQueueDepth = StandardIngestQueue.Depth,
+                StandardQueuePeakDepth = StandardIngestQueue.PeakDepth,
                 PriorityQueueDepth = PriorityAlertQueue.Depth,
                 UndoStackDepth = CommandStack.Depth,
                 UniqueActiveAlertCount = uniqueKeys.Count,
