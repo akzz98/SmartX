@@ -84,6 +84,41 @@ public sealed class GatewayStore
         return Task.FromResult(SnapshotSensors());
     }
 
+    /// <summary>
+    /// Operator diagnostics for FIFO vs priority bypass. Undo / HashSet counts stay 0 until later stages.
+    /// </summary>
+    public StreamSnapshotResponse GetStreamSnapshot()
+    {
+        lock (_gate)
+        {
+            const int recentTake = 8;
+            var recentAlerts = ProcessedPriorityAlerts.Count <= recentTake
+                ? ProcessedPriorityAlerts
+                : ProcessedPriorityAlerts.Skip(ProcessedPriorityAlerts.Count - recentTake);
+
+            return new StreamSnapshotResponse
+            {
+                StandardQueueDepth = StandardIngestQueue.Depth,
+                PriorityQueueDepth = PriorityAlertQueue.Depth,
+                UndoStackDepth = 0,
+                UniqueActiveAlertCount = 0,
+                LastStandardProcessedAt = StandardIngestQueue.LastDequeuedAt,
+                LastPriorityProcessedAt = PriorityAlertQueue.LastDequeuedAt,
+                LastPriorityBypassReason = PriorityAlertQueue.LastBypassReason,
+                RecentCommands = [],
+                RecentAlerts = recentAlerts.Select(StreamDtoMapper.ToAlertResponse).ToList()
+            };
+        }
+    }
+
+    public IReadOnlyList<PriorityAlert> SnapshotProcessedPriorityAlerts()
+    {
+        lock (_gate)
+        {
+            return [.. ProcessedPriorityAlerts];
+        }
+    }
+
     public bool TryAdd(SensorDevice device, out string? error)
     {
         lock (_gate)
