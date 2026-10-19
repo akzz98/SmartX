@@ -43,6 +43,9 @@ public sealed class GatewayStore
     /// <summary>Critical alerts bypass the FIFO stream via this priority queue.</summary>
     public CriticalAlertQueue PriorityAlertQueue { get; } = new();
 
+    /// <summary>Manual override undo stack. Issue/Undo APIs wire this in Stage 4.2–4.3.</summary>
+    public CommandUndoStack CommandStack { get; } = new();
+
     /// <summary>Alerts already handled on the priority path (newest last).</summary>
     public List<PriorityAlert> ProcessedPriorityAlerts { get; } = [];
 
@@ -100,7 +103,7 @@ public sealed class GatewayStore
             {
                 StandardQueueDepth = StandardIngestQueue.Depth,
                 PriorityQueueDepth = PriorityAlertQueue.Depth,
-                UndoStackDepth = 0,
+                UndoStackDepth = CommandStack.Depth,
                 UniqueActiveAlertCount = 0,
                 LastStandardProcessedAt = StandardIngestQueue.LastDequeuedAt,
                 LastPriorityProcessedAt = PriorityAlertQueue.LastDequeuedAt,
