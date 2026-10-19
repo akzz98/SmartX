@@ -142,4 +142,64 @@ public static class Part2DemoSeeder
 
         store.DrainPendingQueues();
     }
+
+    /// <summary>
+    /// Raises the same disconnect alert twice for the silent sump sensor. The HashSet
+    /// accepts the first and suppresses the duplicate so the UI is not spammed.
+    /// </summary>
+    public static void SeedDisconnectDuplicateSuppression(GatewayStore store)
+    {
+        var deviceId = TelemetryFaultSeeder.SilentSensorDeviceId;
+        var device = store.FindSensor(deviceId)
+            ?? throw new InvalidOperationException($"Disconnect-dedupe target '{deviceId}' is not registered.");
+
+        var alert = new PriorityAlert
+        {
+            DeviceId = device.Id,
+            MacAddress = device.MacAddress,
+            Severity = AlertSeverity.Warning,
+            Reason = "Device disconnected — no recent telemetry from sump probe",
+            RaisedAt = DateTimeOffset.UtcNow
+        };
+
+        var processedBefore = store.ProcessedPriorityAlerts.Count;
+        var uniqueBefore = store.ActiveUniqueAlerts.Count;
+
+        var first = store.RaisePriorityAlert(alert);
+        if (!first)
+        {
+            throw new InvalidOperationException("First disconnect alert should have been accepted by the HashSet.");
+        }
+
+        if (store.ProcessedPriorityAlerts.Count != processedBefore + 1
+            || store.ActiveUniqueAlerts.Count != uniqueBefore + 1)
+        {
+            throw new InvalidOperationException("First disconnect alert did not update processed list / unique set.");
+        }
+
+        if (!store.ActiveUniqueAlerts.Contains(UniqueAlertSet.DisconnectKey(device.Id)))
+        {
+            throw new InvalidOperationException("Expected disconnect: HashSet key after the first alert.");
+        }
+
+        var duplicate = store.RaisePriorityAlert(new PriorityAlert
+        {
+            DeviceId = device.Id,
+            MacAddress = device.MacAddress,
+            Severity = AlertSeverity.Warning,
+            Reason = "Device disconnected — no recent telemetry from sump probe",
+            RaisedAt = DateTimeOffset.UtcNow
+        });
+
+        if (duplicate)
+        {
+            throw new InvalidOperationException("Duplicate disconnect alert should have been suppressed by HashSet.");
+        }
+
+        if (store.ProcessedPriorityAlerts.Count != processedBefore + 1
+            || store.ActiveUniqueAlerts.Count != uniqueBefore + 1)
+        {
+            throw new InvalidOperationException("Duplicate disconnect changed processed list or unique set — suppression failed.");
+        }
+    }
 }
