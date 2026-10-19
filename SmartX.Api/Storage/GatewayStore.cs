@@ -196,6 +196,43 @@ public sealed class GatewayStore
         return Task.FromResult(TryIssueCommand(request));
     }
 
+    /// <summary>
+    /// Pops the last manual override and restores PreviousIsActive on the target actuator.
+    /// Empty stack returns a clear error — never throws.
+    /// </summary>
+    public UndoCommandResponse TryUndoCommand()
+    {
+        lock (_gate)
+        {
+            if (!CommandStack.TryPop(out var command) || command is null)
+            {
+                return new UndoCommandResponse
+                {
+                    Succeeded = false,
+                    Errors = ["Nothing to undo — the command stack is empty."]
+                };
+            }
+
+            var device = Fleet.FindById(command.DeviceId);
+            if (device is not null)
+            {
+                device.ExpectedIsActive = command.PreviousIsActive;
+            }
+
+            return new UndoCommandResponse
+            {
+                Succeeded = true,
+                UndoneCommand = StreamDtoMapper.ToCommandResponse(command)
+            };
+        }
+    }
+
+    public Task<UndoCommandResponse> TryUndoCommandAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(TryUndoCommand());
+    }
+
     private static IssueCommandResponse FailIssue(List<string> errors)
         => new() { Succeeded = false, Errors = errors };
 

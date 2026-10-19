@@ -34,4 +34,19 @@ public sealed class CommandsController : ControllerBase
 
         return Ok(result);
     }
+
+    /// <summary>
+    /// Pops the last override and restores the previous ExpectedIsActive on that actuator.
+    /// </summary>
+    [HttpPost("undo")]
+    public async Task<ActionResult<UndoCommandResponse>> Undo(CancellationToken cancellationToken)
+    {
+        var result = await _store.TryUndoCommandAsync(cancellationToken);
+        if (!result.Succeeded)
+        {
+            return BadRequest(result);
+        }
+
+        return Ok(result);
+    }
 }
