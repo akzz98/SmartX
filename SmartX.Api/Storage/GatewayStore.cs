@@ -36,6 +36,9 @@ public sealed class GatewayStore
     /// <summary>Custom fleet collection: lookup + ingest counters, not a bare List.</summary>
     public SensorFleet Fleet { get; } = new();
 
+    /// <summary>Standard FIFO ingest queue. Wired into TryIngest in Stage 3.2.</summary>
+    public StandardTelemetryQueue StandardIngestQueue { get; } = new();
+
     // Separate typed buffers — never List<object> — so float/int/bool packets stay unboxed.
     public List<TelemetryPacket<EnvironmentalReading>> EnvironmentalPackets { get; } = [];
 
