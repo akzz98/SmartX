@@ -315,6 +315,29 @@ public static class TelemetryFaultSeeder
 
         // Drain the parked FIFO packet so the rest of the gateway sees a consistent fleet.
         store.DrainPendingQueues();
+
+        // Same critical alert again — HashSet must suppress duplicate processing / UI spam.
+        var processedBeforeDuplicate = store.ProcessedPriorityAlerts.Count;
+        var uniqueBeforeDuplicate = store.ActiveUniqueAlerts.Count;
+        var acceptedDuplicate = store.RaisePriorityAlert(new PriorityAlert
+        {
+            DeviceId = device.Id,
+            MacAddress = device.MacAddress,
+            Severity = AlertSeverity.Critical,
+            Reason = "Critical moisture drop below 20% on rack 1 — irrigation risk; priority bypass",
+            RaisedAt = DateTimeOffset.UtcNow
+        });
+
+        if (acceptedDuplicate)
+        {
+            throw new InvalidOperationException("Duplicate critical moisture alert should have been suppressed by HashSet.");
+        }
+
+        if (store.ProcessedPriorityAlerts.Count != processedBeforeDuplicate
+            || store.ActiveUniqueAlerts.Count != uniqueBeforeDuplicate)
+        {
+            throw new InvalidOperationException("Duplicate alert changed processed list or unique set — suppression failed.");
+        }
     }
 
     /// <summary>

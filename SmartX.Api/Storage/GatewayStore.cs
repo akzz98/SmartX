@@ -378,41 +378,65 @@ public sealed class GatewayStore
 
     /// <summary>
     /// Raises an alert onto the priority queue and processes it immediately,
-    /// without waiting behind standard FIFO telemetry.
+    /// without waiting behind standard FIFO telemetry. Duplicate device+reason
+    /// (or disconnect) keys are suppressed by <see cref="UniqueAlertSet"/>.
     /// </summary>
-    public void RaisePriorityAlert(PriorityAlert alert)
+    /// <returns>False when the HashSet already held this alert key (no spam).</returns>
+    public bool RaisePriorityAlert(PriorityAlert alert)
     {
         ArgumentNullException.ThrowIfNull(alert);
 
         lock (_gate)
         {
-            if (string.IsNullOrWhiteSpace(alert.Id))
-            {
-                alert.Id = Guid.NewGuid().ToString("N");
-            }
-
-            if (alert.RaisedAt == default)
-            {
-                alert.RaisedAt = DateTimeOffset.UtcNow;
-            }
-
-            if (string.IsNullOrWhiteSpace(alert.MacAddress)
-                && !string.IsNullOrWhiteSpace(alert.DeviceId)
-                && Fleet.FindById(alert.DeviceId) is { } device)
-            {
-                alert.MacAddress = device.MacAddress;
-            }
-
-            PriorityAlertQueue.Enqueue(alert);
-            DrainPriorityAlertsLocked();
+            return TryRaisePriorityAlertLocked(alert);
         }
     }
 
-    public Task RaisePriorityAlertAsync(PriorityAlert alert, CancellationToken cancellationToken)
+    public Task<bool> RaisePriorityAlertAsync(PriorityAlert alert, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        RaisePriorityAlert(alert);
-        return Task.CompletedTask;
+        return Task.FromResult(RaisePriorityAlert(alert));
+    }
+
+    private bool TryRaisePriorityAlertLocked(PriorityAlert alert)
+    {
+        if (string.IsNullOrWhiteSpace(alert.Id))
+        {
+            alert.Id = Guid.NewGuid().ToString("N");
+        }
+
+        if (alert.RaisedAt == default)
+        {
+            alert.RaisedAt = DateTimeOffset.UtcNow;
+        }
+
+        if (string.IsNullOrWhiteSpace(alert.MacAddress)
+            && !string.IsNullOrWhiteSpace(alert.DeviceId)
+            && Fleet.FindById(alert.DeviceId) is { } device)
+        {
+            alert.MacAddress = device.MacAddress;
+        }
+
+        var key = BuildUniqueAlertKey(alert);
+        if (!ActiveUniqueAlerts.TryAdd(key))
+        {
+            // Same disconnect/error already active — do not re-queue or re-process.
+            return false;
+        }
+
+        PriorityAlertQueue.Enqueue(alert);
+        DrainPriorityAlertsLocked();
+        return true;
+    }
+
+    private static string BuildUniqueAlertKey(PriorityAlert alert)
+    {
+        if (alert.Reason.Contains("disconnect", StringComparison.OrdinalIgnoreCase))
+        {
+            return UniqueAlertSet.DisconnectKey(alert.DeviceId);
+        }
+
+        return UniqueAlertSet.ErrorKey(alert.DeviceId, alert.Reason);
     }
 
     private void DrainPriorityAlertsLocked()
