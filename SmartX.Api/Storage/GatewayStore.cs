@@ -28,6 +28,7 @@ public sealed class GatewayStore
         TelemetryFaultSeeder.SeedSilentSensor(this);
         TelemetryFaultSeeder.SeedMalformedPackets(this);
         TelemetryFaultSeeder.SeedLocationOutage(this);
+        TelemetryFaultSeeder.SeedCriticalMoisturePriorityBypass(this);
         TelemetryFaultSeeder.SeedRecovery(this);
     }
 
@@ -160,6 +161,32 @@ public sealed class GatewayStore
             DrainStandardQueueLocked();
             error = null;
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Simulation/demo: park a packet on the FIFO queue without draining it,
+    /// so a priority alert can prove it bypasses backlog.
+    /// </summary>
+    public void EnqueueStandardWithoutDrain(QueuedTelemetryItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        lock (_gate)
+        {
+            StandardIngestQueue.Enqueue(item);
+        }
+    }
+
+    /// <summary>
+    /// Drains priority alerts first, then the standard FIFO queue.
+    /// </summary>
+    public void DrainPendingQueues()
+    {
+        lock (_gate)
+        {
+            DrainPriorityAlertsLocked();
+            DrainStandardQueueLocked();
         }
     }
 

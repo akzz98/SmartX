@@ -251,6 +251,72 @@ public static class TelemetryFaultSeeder
     // Climb back into the 18–26 °C crop band after the 44 °C spike.
     private static readonly float[] TemperatureRecoveryCelsius = [32f, 24f, 21.5f];
 
+    public const string CriticalMoistureDeviceId = "sx-env-rack1-moist";
+
+    /// <summary>
+    /// Parks a normal packet on the FIFO queue, then raises a Critical moisture alert
+    /// on the priority path. The alert is processed while FIFO still has backlog —
+    /// proving priority bypass (Stage 3.4).
+    /// </summary>
+    public static void SeedCriticalMoisturePriorityBypass(GatewayStore store)
+    {
+        var device = store.FindSensor(CriticalMoistureDeviceId)
+            ?? throw new InvalidOperationException(
+                $"Priority-bypass target '{CriticalMoistureDeviceId}' is not registered.");
+
+        var ingest = store.GetIngestState(device.Id)
+            ?? throw new InvalidOperationException($"No ingest state for '{device.Id}' — seed the normal stream first.");
+
+        var parkedPacket = new TelemetryPacket<EnvironmentalReading>
+        {
+            DeviceId = device.Id,
+            Timestamp = (ingest.LastIngestedAt ?? DateTimeOffset.UtcNow).AddSeconds(15),
+            Sequence = ingest.LastSequence + 1,
+            SignalQuality = 90,
+            Payload = new EnvironmentalReading(52f, EnvironmentalMetric.Moisture)
+        };
+
+        store.EnqueueStandardWithoutDrain(QueuedTelemetryItem.FromEnvironmental(parkedPacket));
+
+        if (store.StandardIngestQueue.Depth < 1)
+        {
+            throw new InvalidOperationException("Expected a parked FIFO packet before the priority bypass alert.");
+        }
+
+        var fifoDepthBeforeBypass = store.StandardIngestQueue.Depth;
+        var priorityDequeuedBefore = store.PriorityAlertQueue.TotalDequeued;
+
+        store.RaisePriorityAlert(new PriorityAlert
+        {
+            DeviceId = device.Id,
+            MacAddress = device.MacAddress,
+            Severity = AlertSeverity.Critical,
+            Reason = "Critical moisture drop below 20% on rack 1 — irrigation risk; priority bypass",
+            RaisedAt = DateTimeOffset.UtcNow
+        });
+
+        if (store.PriorityAlertQueue.TotalDequeued != priorityDequeuedBefore + 1)
+        {
+            throw new InvalidOperationException("Critical moisture alert was not dequeued on the priority path.");
+        }
+
+        if (store.StandardIngestQueue.Depth != fifoDepthBeforeBypass)
+        {
+            throw new InvalidOperationException(
+                "FIFO depth changed during priority bypass — critical alert must not drain the standard queue.");
+        }
+
+        if (store.ProcessedPriorityAlerts.Count == 0
+            || !store.ProcessedPriorityAlerts[^1].IsProcessed
+            || store.ProcessedPriorityAlerts[^1].Severity != AlertSeverity.Critical)
+        {
+            throw new InvalidOperationException("Processed priority alert missing after moisture bypass seed.");
+        }
+
+        // Drain the parked FIFO packet so the rest of the gateway sees a consistent fleet.
+        store.DrainPendingQueues();
+    }
+
     /// <summary>
     /// Rack 1 temperature returns to a normal crop reading so operators can see
     /// recovery after Critical, without erasing the spike from history.
