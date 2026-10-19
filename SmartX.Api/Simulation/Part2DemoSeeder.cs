@@ -76,4 +76,70 @@ public static class Part2DemoSeeder
             throw new InvalidOperationException("FIFO queue should be empty after the burst drain.");
         }
     }
+
+    public const string CriticalPowerDeviceId = "sx-pwr-inverter";
+
+    /// <summary>
+    /// Parks a normal power packet on FIFO, then raises a Critical power-spike alert on the
+    /// priority path so it bypasses the backlog (pairs with the moisture bypass seed).
+    /// </summary>
+    public static void SeedCriticalPowerPriorityBypass(GatewayStore store)
+    {
+        var device = store.FindSensor(CriticalPowerDeviceId)
+            ?? throw new InvalidOperationException($"Power priority target '{CriticalPowerDeviceId}' is not registered.");
+
+        var ingest = store.GetIngestState(device.Id)
+            ?? throw new InvalidOperationException($"No ingest state for '{device.Id}' — seed the normal stream first.");
+
+        var parkedPacket = new TelemetryPacket<PowerReading>
+        {
+            DeviceId = device.Id,
+            Timestamp = (ingest.LastIngestedAt ?? DateTimeOffset.UtcNow).AddSeconds(10),
+            Sequence = ingest.LastSequence + 1,
+            SignalQuality = 88,
+            Payload = new PowerReading(1200, PowerMetric.Watts)
+        };
+
+        store.EnqueueStandardWithoutDrain(QueuedTelemetryItem.FromPower(parkedPacket));
+
+        if (store.StandardIngestQueue.Depth < 1)
+        {
+            throw new InvalidOperationException("Expected a parked FIFO power packet before the priority bypass.");
+        }
+
+        var fifoDepthBefore = store.StandardIngestQueue.Depth;
+        var priorityDequeuedBefore = store.PriorityAlertQueue.TotalDequeued;
+
+        var accepted = store.RaisePriorityAlert(new PriorityAlert
+        {
+            DeviceId = device.Id,
+            MacAddress = device.MacAddress,
+            Severity = AlertSeverity.Critical,
+            Reason = "Severe power spike on site inverter — priority bypass ahead of FIFO backlog",
+            RaisedAt = DateTimeOffset.UtcNow
+        });
+
+        if (!accepted)
+        {
+            throw new InvalidOperationException("Critical power alert was suppressed unexpectedly.");
+        }
+
+        if (store.PriorityAlertQueue.TotalDequeued != priorityDequeuedBefore + 1)
+        {
+            throw new InvalidOperationException("Critical power alert was not dequeued on the priority path.");
+        }
+
+        if (store.StandardIngestQueue.Depth != fifoDepthBefore)
+        {
+            throw new InvalidOperationException("FIFO depth changed during power priority bypass.");
+        }
+
+        if (store.PriorityAlertQueue.LastBypassReason is null
+            || !store.PriorityAlertQueue.LastBypassReason.Contains("power spike", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("LastPriorityBypassReason was not updated for the power spike.");
+        }
+
+        store.DrainPendingQueues();
+    }
 }

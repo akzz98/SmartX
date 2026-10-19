@@ -30,6 +30,7 @@ public sealed class GatewayStore
         TelemetryFaultSeeder.SeedMalformedPackets(this);
         TelemetryFaultSeeder.SeedLocationOutage(this);
         TelemetryFaultSeeder.SeedCriticalMoisturePriorityBypass(this);
+        Part2DemoSeeder.SeedCriticalPowerPriorityBypass(this);
         TelemetryFaultSeeder.SeedRecovery(this);
         RecommendationSeeder.SeedOperatorPatterns(this);
     }
