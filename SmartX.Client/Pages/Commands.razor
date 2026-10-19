@@ -227,6 +227,72 @@
                 </div>
             }
         </article>
+
+        <article class="commands-panel commands-panel-wide">
+            <h2>Command / alert timeline (@(timeline?.TotalCount ?? 0))</h2>
+            <p class="commands-empty">
+                SortedDictionary history (oldest → newest). Overrides and priority alerts only —
+                not the full Part 1 telemetry fleet dump.
+            </p>
+            @if (timeline is null || timeline.Entries.Count == 0)
+            {
+                <p class="commands-empty">No timeline entries yet. Issue an override or wait for a priority alert.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="commands-table">
+                        <thead>
+                            <tr>
+                                <th>When</th>
+                                <th>Kind</th>
+                                <th>Device</th>
+                                <th>Summary</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in timeline.Entries)
+                            {
+                                <tr>
+                                    <td>@entry.Timestamp.ToLocalTime().ToString("HH:mm:ss")</td>
+                                    <td>@entry.Kind</td>
+                                    <td>@entry.DeviceId</td>
+                                    <td>@entry.Summary</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (snapshot.RecentCommands.Count > 0)
+            {
+                <h3 class="commands-subhead">Undo stack (newest first)</h3>
+                <div class="table-wrap">
+                    <table class="commands-table">
+                        <thead>
+                            <tr>
+                                <th>Device</th>
+                                <th>Kind</th>
+                                <th>Target</th>
+                                <th>Issued</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var command in snapshot.RecentCommands)
+                            {
+                                <tr>
+                                    <td>@command.DeviceId</td>
+                                    <td>@command.Kind</td>
+                                    <td>@(command.TargetIsActive ? "active" : "inactive")</td>
+                                    <td>@command.IssuedAt.ToLocalTime().ToString("HH:mm:ss")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </article>
     }
 
     <p class="commands-ops">
@@ -240,6 +306,7 @@
 
 @code {
     private StreamSnapshotResponse? snapshot;
+    private TimelineHistoryResponse? timeline;
     private List<SensorResponse> filteredDevices = [];
     private List<SensorResponse> actuators = [];
     private string? loadError;
@@ -385,6 +452,7 @@
         try
         {
             snapshot = await Http.GetFromJsonAsync<StreamSnapshotResponse>("api/stream/snapshot", GatewayJson.Options);
+            timeline = await Http.GetFromJsonAsync<TimelineHistoryResponse>("api/stream/timeline", GatewayJson.Options);
             var fleet = await Http.GetFromJsonAsync<SensorListResponse>("api/sensors?category=Actuator", GatewayJson.Options);
             actuators = fleet?.Sensors ?? [];
             if (actuators.Count > 0 && actuators.All(sensor => sensor.Id != overrideDeviceId))
@@ -397,6 +465,7 @@
         catch (HttpRequestException)
         {
             snapshot = null;
+            timeline = null;
             filteredDevices = [];
             actuators = [];
             loadError = "Gateway unreachable. Start SmartX.Api (http://localhost:5015) and reload.";
@@ -404,6 +473,7 @@
         catch (Exception)
         {
             snapshot = null;
+            timeline = null;
             filteredDevices = [];
             actuators = [];
             loadError = "The command-stream page could not be loaded from the gateway.";
