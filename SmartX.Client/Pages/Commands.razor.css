@@ -1,0 +1,32 @@
+.commands-kicker {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5b6472;
+}
+
+.commands-header h1 {
+    margin: 0 0 0.45rem;
+    font-size: 1.6rem;
+}
+
+.commands-lead {
+    max-width: 44rem;
+    margin: 0 0 1.25rem;
+    color: #4a5563;
+}
+
+.commands-placeholder {
+    margin: 0 0 1rem;
+    padding: 0.85rem 0.95rem;
+    border: 1px solid #cfd6df;
+    border-radius: 4px;
+    background: #fff;
+    color: #4a5563;
+}
+
+.commands-ops {
+    margin: 0;
+    font-size: 0.9rem;
+}

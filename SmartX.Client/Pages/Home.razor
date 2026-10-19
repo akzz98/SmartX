@@ -1,6 +1,6 @@
 ﻿@page "/"
 
-@* Official Part 1 Task 2 startup menu. Only telemetry is in scope; the other pillars stay visible and locked. *@
+@* Startup menu: telemetry (Part 1) and command stream (Part 2) enabled; mesh stays locked for PoE. *@
 
 <PageTitle>Smart-X Gateway — Startup</PageTitle>
 
@@ -9,8 +9,8 @@
         <p class="startup-kicker">Smart-X simulated IoT gateway</p>
         <h1>Select an operational pillar</h1>
         <p class="startup-lead">
-            Hydroponics, utilities, and site-meter telemetry. Progressive Disclosure dashboard
-            is attached to ingestion only.
+            Hydroponics, utilities, and site-meter telemetry. Progressive Disclosure covers
+            ingestion; Part 2 adds the real-time command stream.
         </p>
     </header>
 
@@ -22,12 +22,12 @@
             <span class="pillar-action">Open telemetry dashboard</span>
         </a>
 
-        <div class="pillar pillar-locked" aria-disabled="true">
-            <span class="pillar-status">Locked</span>
+        <a class="pillar pillar-enabled" href="commands">
+            <span class="pillar-status">Available</span>
             <h2>Real-Time Command Stream and History</h2>
-            <p>Downstream commands to actuators. Visible for the three-pillar layout; enabled in official Part 2.</p>
-            <span class="pillar-action">Unavailable in this assessment part</span>
-        </div>
+            <p>Manual actuator overrides, priority alert bypass, undo stack, and suggested actions.</p>
+            <span class="pillar-action">Open command stream</span>
+        </a>
 
         <div class="pillar pillar-locked" aria-disabled="true">
             <span class="pillar-status">Locked</span>
@@ -41,5 +41,7 @@
         <a href="telemetry/register">Register ESP32</a>
         ·
         <a href="telemetry/ingest">Ingest a packet</a>
+        ·
+        <a href="commands">Command stream</a>
     </p>
 </section>
