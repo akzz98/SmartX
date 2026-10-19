@@ -49,6 +49,9 @@ public sealed class GatewayStore
     /// <summary>SortedDictionary-backed timeline for command-stream history graphs.</summary>
     public TimelineLog Timeline { get; } = new();
 
+    /// <summary>HashSet of unique active disconnect/error keys. Dedupe wired in Stage 6.2.</summary>
+    public UniqueAlertSet ActiveUniqueAlerts { get; } = new();
+
     /// <summary>Alerts already handled on the priority path (newest last).</summary>
     public List<PriorityAlert> ProcessedPriorityAlerts { get; } = [];
 
@@ -109,7 +112,7 @@ public sealed class GatewayStore
                 StandardQueueDepth = StandardIngestQueue.Depth,
                 PriorityQueueDepth = PriorityAlertQueue.Depth,
                 UndoStackDepth = CommandStack.Depth,
-                UniqueActiveAlertCount = 0,
+                UniqueActiveAlertCount = ActiveUniqueAlerts.Count,
                 LastStandardProcessedAt = StandardIngestQueue.LastDequeuedAt,
                 LastPriorityProcessedAt = PriorityAlertQueue.LastDequeuedAt,
                 LastPriorityBypassReason = PriorityAlertQueue.LastBypassReason,
