@@ -76,6 +76,9 @@
         </label>
         <div class="sx-form-actions">
             <button type="submit" disabled="@issueBusy">Issue override</button>
+            <button type="button" disabled="@(issueBusy || undoBusy)" @onclick="UndoOverrideAsync">
+                Undo last override
+            </button>
         </div>
     </form>
 
@@ -249,6 +252,7 @@
     private string overrideKindText = nameof(CommandKind.CloseValve);
     private string overrideNote = string.Empty;
     private bool issueBusy;
+    private bool undoBusy;
     private string? issueMessage;
     private string? issueError;
 
@@ -317,7 +321,7 @@
 
             issueMessage =
                 $"Issued {payload.Command?.Kind} on {payload.Command?.DeviceId} " +
-                $"(target {(payload.Command?.TargetIsActive == true ? "active" : "inactive")}). Undo stack depth will refresh below.";
+                $"(target {(payload.Command?.TargetIsActive == true ? "active" : "inactive")}).";
             await ReloadAsync();
         }
         catch (HttpRequestException)
@@ -331,6 +335,47 @@
         finally
         {
             issueBusy = false;
+        }
+    }
+
+    private async Task UndoOverrideAsync()
+    {
+        issueMessage = null;
+        issueError = null;
+        undoBusy = true;
+        try
+        {
+            using var response = await Http.PostAsync("api/commands/undo", null);
+            var payload = await response.Content.ReadFromJsonAsync<UndoCommandResponse>(GatewayJson.Options);
+
+            if (payload is null)
+            {
+                issueError = "Gateway returned an empty undo response.";
+                return;
+            }
+
+            if (!payload.Succeeded)
+            {
+                issueError = string.Join(" ", payload.Errors);
+                return;
+            }
+
+            issueMessage =
+                $"Undid {payload.UndoneCommand?.Kind} on {payload.UndoneCommand?.DeviceId} " +
+                $"(restored {(payload.UndoneCommand?.PreviousIsActive == true ? "active" : payload.UndoneCommand?.PreviousIsActive == false ? "inactive" : "unset")}).";
+            await ReloadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            issueError = "Gateway unreachable. Start SmartX.Api and try again.";
+        }
+        catch (Exception)
+        {
+            issueError = "The undo request failed.";
+        }
+        finally
+        {
+            undoBusy = false;
         }
     }
 
