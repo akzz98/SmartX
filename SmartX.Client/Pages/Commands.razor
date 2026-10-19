@@ -1,6 +1,7 @@
 @page "/commands"
+@inject HttpClient Http
 
-@* Official Part 2 shell. Queues, overrides, and suggestions land in later stages. *@
+@* Part 2 stream visualisation: queue depths, unique HashSet alerts, recent priority work. *@
 
 <PageTitle>Command stream — Smart-X</PageTitle>
 
@@ -9,18 +10,285 @@
         <p class="commands-kicker">Part 2 · Real-Time Command Stream</p>
         <h1>Command stream and history</h1>
         <p class="commands-lead">
-            Issue manual overrides to actuators and watch priority alerts bypass the standard
-            ingest queue. Stream processing, undo stack, and suggested actions are wired next.
+            Standard FIFO ingest vs critical priority bypass. Filter the fleet by category and
+            alert/health state before issuing overrides.
         </p>
     </header>
 
-    <p class="commands-placeholder" role="status">
-        Command stream shell is online. Telemetry ingestion remains available under Overview.
-    </p>
+    <form class="sx-form commands-filter" @onsubmit="ApplyFiltersAsync" @onsubmit:preventDefault>
+        <label>
+            Category
+            <select @bind="categoryText">
+                <option value="">Any category</option>
+                @foreach (var name in Enum.GetNames<SensorCategory>())
+                {
+                    <option value="@name">@name</option>
+                }
+            </select>
+        </label>
+        <label>
+            Health
+            <select @bind="healthText">
+                <option value="">Any health</option>
+                @foreach (var name in Enum.GetNames<HealthState>())
+                {
+                    <option value="@name">@name</option>
+                }
+            </select>
+        </label>
+        <label>
+            Alert state
+            <select @bind="alertScope">
+                <option value="any">Any</option>
+                <option value="unique">Unique HashSet key active</option>
+                <option value="attention">Non-normal health</option>
+            </select>
+        </label>
+        <div class="sx-form-actions">
+            <button type="submit">Apply filters</button>
+            <button type="button" @onclick="ClearFiltersAsync">Clear</button>
+        </div>
+    </form>
+
+    @if (loadError is not null)
+    {
+        <p class="commands-error" role="alert">@loadError</p>
+    }
+    else if (snapshot is null)
+    {
+        <p>Loading stream snapshot…</p>
+    }
+    else
+    {
+        <div class="kpi-grid">
+            <article class="kpi">
+                <span class="kpi-label">FIFO depth</span>
+                <span class="kpi-value">@snapshot.StandardQueueDepth</span>
+            </article>
+            <article class="kpi kpi-alert">
+                <span class="kpi-label">Priority depth</span>
+                <span class="kpi-value">@snapshot.PriorityQueueDepth</span>
+            </article>
+            <article class="kpi">
+                <span class="kpi-label">Undo stack</span>
+                <span class="kpi-value">@snapshot.UndoStackDepth</span>
+            </article>
+            <article class="kpi kpi-stale">
+                <span class="kpi-label">Unique active alerts</span>
+                <span class="kpi-value">@snapshot.UniqueActiveAlertCount</span>
+            </article>
+        </div>
+
+        <div class="commands-panels">
+            <article class="commands-panel">
+                <h2>Processing timestamps</h2>
+                <dl class="commands-meta">
+                    <div>
+                        <dt>Last FIFO dequeue</dt>
+                        <dd>@(snapshot.LastStandardProcessedAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</dd>
+                    </div>
+                    <div>
+                        <dt>Last priority dequeue</dt>
+                        <dd>@(snapshot.LastPriorityProcessedAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</dd>
+                    </div>
+                    <div>
+                        <dt>Last priority bypass</dt>
+                        <dd>@(snapshot.LastPriorityBypassReason ?? "—")</dd>
+                    </div>
+                </dl>
+            </article>
+
+            <article class="commands-panel">
+                <h2>Unique active keys (HashSet)</h2>
+                @if (snapshot.UniqueActiveAlertKeys.Count == 0)
+                {
+                    <p class="commands-empty">No unique disconnect/error keys active.</p>
+                }
+                else
+                {
+                    <ul class="commands-keys">
+                        @foreach (var key in snapshot.UniqueActiveAlertKeys)
+                        {
+                            <li><code>@key</code></li>
+                        }
+                    </ul>
+                }
+            </article>
+        </div>
+
+        <article class="commands-panel commands-panel-wide">
+            <h2>Filtered devices (@filteredDevices.Count)</h2>
+            <p class="commands-empty">Category and health filters run on the API; alert-state narrows the subset here.</p>
+            @if (filteredDevices.Count == 0)
+            {
+                <p class="commands-empty">No devices match this filter.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="commands-table">
+                        <thead>
+                            <tr>
+                                <th>Device</th>
+                                <th>Category</th>
+                                <th>Health</th>
+                                <th>Freshness</th>
+                                <th>Unique alert</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var sensor in filteredDevices)
+                            {
+                                <tr>
+                                    <td><a href="telemetry/devices/@sensor.Id">@sensor.Id</a></td>
+                                    <td>@sensor.Category</td>
+                                    <td><StateChip Health="sensor.Health" /></td>
+                                    <td><StateChip Freshness="sensor.Freshness" /></td>
+                                    <td>@(HasUniqueAlert(sensor.Id) ? "yes" : "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </article>
+
+        <article class="commands-panel commands-panel-wide">
+            <h2>Recent priority alerts</h2>
+            @if (snapshot.RecentAlerts.Count == 0)
+            {
+                <p class="commands-empty">No processed priority alerts yet.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="commands-table">
+                        <thead>
+                            <tr>
+                                <th>Device</th>
+                                <th>Severity</th>
+                                <th>Reason</th>
+                                <th>Raised</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var alert in snapshot.RecentAlerts.AsEnumerable().Reverse())
+                            {
+                                <tr>
+                                    <td>@alert.DeviceId</td>
+                                    <td>@alert.Severity</td>
+                                    <td>@alert.Reason</td>
+                                    <td>@alert.RaisedAt.ToLocalTime().ToString("HH:mm:ss")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </article>
+    }
 
     <p class="commands-ops">
         <a href="telemetry">Fleet overview</a>
         ·
         <a href="">Startup menu</a>
+        ·
+        <button type="button" class="commands-refresh" @onclick="ReloadAsync">Refresh</button>
     </p>
 </section>
+
+@code {
+    private StreamSnapshotResponse? snapshot;
+    private List<SensorResponse> filteredDevices = [];
+    private string? loadError;
+
+    private string categoryText = string.Empty;
+    private string healthText = string.Empty;
+    private string alertScope = "any";
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ClearFiltersAsync()
+    {
+        categoryText = string.Empty;
+        healthText = string.Empty;
+        alertScope = "any";
+        await ApplyFiltersAsync();
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        if (snapshot is null && loadError is null)
+        {
+            await ReloadAsync();
+            return;
+        }
+
+        await LoadFilteredDevicesAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        loadError = null;
+        try
+        {
+            snapshot = await Http.GetFromJsonAsync<StreamSnapshotResponse>("api/stream/snapshot", GatewayJson.Options);
+            await LoadFilteredDevicesAsync();
+        }
+        catch (HttpRequestException)
+        {
+            snapshot = null;
+            filteredDevices = [];
+            loadError = "Gateway unreachable. Start SmartX.Api (http://localhost:5015) and reload.";
+        }
+        catch (Exception)
+        {
+            snapshot = null;
+            filteredDevices = [];
+            loadError = "The command-stream page could not be loaded from the gateway.";
+        }
+    }
+
+    private async Task LoadFilteredDevicesAsync()
+    {
+        var list = await Http.GetFromJsonAsync<SensorListResponse>(BuildSensorUrl(), GatewayJson.Options);
+        var sensors = list?.Sensors ?? [];
+
+        filteredDevices = alertScope switch
+        {
+            "unique" => sensors.Where(sensor => HasUniqueAlert(sensor.Id)).ToList(),
+            "attention" => sensors.Where(sensor => sensor.Health is not HealthState.Normal).ToList(),
+            _ => sensors
+        };
+    }
+
+    private bool HasUniqueAlert(string deviceId)
+    {
+        if (snapshot is null || string.IsNullOrWhiteSpace(deviceId))
+        {
+            return false;
+        }
+
+        var needle = deviceId.Trim();
+        return snapshot.UniqueActiveAlertKeys.Any(key =>
+            key.Contains($":{needle}:", StringComparison.OrdinalIgnoreCase)
+            || key.EndsWith($":{needle}", StringComparison.OrdinalIgnoreCase)
+            || key.Contains($"disconnect:{needle}", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string BuildSensorUrl()
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(categoryText))
+        {
+            query.Add("category=" + Uri.EscapeDataString(categoryText.Trim()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(healthText))
+        {
+            query.Add("health=" + Uri.EscapeDataString(healthText.Trim()));
+        }
+
+        return query.Count == 0 ? "api/sensors" : "api/sensors?" + string.Join("&", query);
+    }
+}

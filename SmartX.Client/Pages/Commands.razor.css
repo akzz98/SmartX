@@ -17,16 +17,148 @@
     color: #4a5563;
 }
 
-.commands-placeholder {
-    margin: 0 0 1rem;
-    padding: 0.85rem 0.95rem;
+.commands-error {
+    color: var(--sx-critical);
+    font-weight: 600;
+}
+
+.commands .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.commands .kpi {
     border: 1px solid #cfd6df;
     border-radius: 4px;
     background: #fff;
+    padding: 0.85rem 0.95rem;
+}
+
+.commands .kpi-label {
+    display: block;
+    margin: 0 0 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #5b6472;
+}
+
+.commands .kpi-value {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: #1b2430;
+}
+
+.commands .kpi-alert .kpi-value {
+    color: var(--sx-critical);
+}
+
+.commands .kpi-stale .kpi-value {
+    color: var(--sx-warning);
+}
+
+.commands-panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.commands-panel {
+    border: 1px solid #cfd6df;
+    border-radius: 4px;
+    background: #fff;
+    padding: 0.85rem 0.95rem;
+    margin-bottom: 0.75rem;
+}
+
+.commands-panel h2 {
+    margin: 0 0 0.65rem;
+    font-size: 0.95rem;
+}
+
+.commands-meta {
+    margin: 0;
+    display: grid;
+    gap: 0.55rem;
+}
+
+.commands-meta dt {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #5b6472;
+}
+
+.commands-meta dd {
+    margin: 0.15rem 0 0;
+    color: #1b2430;
+    word-break: break-word;
+}
+
+.commands-keys {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.commands-keys code {
+    font-size: 0.82rem;
+}
+
+.commands-empty {
+    margin: 0;
     color: #4a5563;
 }
 
-.commands-ops {
-    margin: 0;
+.commands-table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 0.9rem;
+}
+
+.commands-table th,
+.commands-table td {
+    text-align: left;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid #e3e8ef;
+    vertical-align: top;
+}
+
+.commands-table th {
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #5b6472;
+}
+
+.commands-filter {
+    margin-bottom: 1rem;
+}
+
+.commands-ops {
+    margin: 1rem 0 0;
+    font-size: 0.9rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.5rem;
+    align-items: center;
+}
+
+.commands-refresh {
+    font-size: 0.9rem;
+    padding: 0.25rem 0.55rem;
+    border: 1px solid #cfd6df;
+    background: #fff;
+    color: #1b2430;
+    cursor: pointer;
+}
+
+.commands-refresh:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
