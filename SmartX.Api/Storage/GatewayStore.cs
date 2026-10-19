@@ -26,6 +26,7 @@ public sealed class GatewayStore
         Part2DemoSeeder.SeedFifoBurst(this);
         TelemetryFaultSeeder.SeedTemperatureSpike(this);
         TelemetryFaultSeeder.SeedStuckActuator(this);
+        Part2DemoSeeder.SeedActuatorOverrideDemo(this);
         TelemetryFaultSeeder.SeedSilentSensor(this);
         Part2DemoSeeder.SeedDisconnectDuplicateSuppression(this);
         TelemetryFaultSeeder.SeedMalformedPackets(this);

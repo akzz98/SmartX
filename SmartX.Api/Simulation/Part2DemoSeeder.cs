@@ -202,4 +202,64 @@ public static class Part2DemoSeeder
             throw new InvalidOperationException("Duplicate disconnect changed processed list or unique set — suppression failed.");
         }
     }
+
+    /// <summary>Demo actuators on the command stream (valve / pump / relay).</summary>
+    public static readonly string[] DemoActuatorIds =
+    [
+        "sx-act-rack1-valve",
+        "sx-act-rack2-valve",
+        "sx-act-sump-pump",
+        "sx-act-feeder-switch"
+    ];
+
+    public const string DemoOverrideValveId = "sx-act-rack2-valve";
+
+    /// <summary>
+    /// Confirms seeded actuators exist, then runs one issue+undo on the demo valve so
+    /// override/undo paths are proven before the operator opens the command stream.
+    /// </summary>
+    public static void SeedActuatorOverrideDemo(GatewayStore store)
+    {
+        foreach (var id in DemoActuatorIds)
+        {
+            var device = store.FindSensor(id)
+                ?? throw new InvalidOperationException($"Demo actuator '{id}' is not registered.");
+
+            if (device.Category != SensorCategory.Actuator)
+            {
+                throw new InvalidOperationException($"'{id}' must be Actuator category for override demos.");
+            }
+        }
+
+        var depthBefore = store.CommandStack.Depth;
+        var issued = store.TryIssueCommand(new IssueCommandRequest
+        {
+            DeviceId = DemoOverrideValveId,
+            Kind = CommandKind.CloseValve,
+            OperatorNote = "Part 2 demo: prove override + undo on rack 2 valve"
+        });
+
+        if (!issued.Succeeded || issued.Command is null)
+        {
+            throw new InvalidOperationException(
+                "Demo override failed: " + string.Join(" ", issued.Errors));
+        }
+
+        if (store.CommandStack.Depth != depthBefore + 1)
+        {
+            throw new InvalidOperationException("Demo override did not push onto the undo stack.");
+        }
+
+        var undone = store.TryUndoCommand();
+        if (!undone.Succeeded || undone.UndoneCommand?.DeviceId != DemoOverrideValveId)
+        {
+            throw new InvalidOperationException(
+                "Demo undo failed: " + string.Join(" ", undone.Errors));
+        }
+
+        if (store.CommandStack.Depth != depthBefore)
+        {
+            throw new InvalidOperationException("Demo undo did not restore the previous stack depth.");
+        }
+    }
 }
