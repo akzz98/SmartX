@@ -166,6 +166,19 @@ public sealed class GatewayStore
         }
     }
 
+    /// <summary>
+    /// BFS reachability from a root: visit order, down / cut-off nodes, suggested hops.
+    /// </summary>
+    public MeshTraversalResponse GetMeshTraversal(string? rootId = null)
+    {
+        lock (_gate)
+        {
+            MeshTopologySeeder.RefreshOnlineStatus(this);
+            var report = MeshReachabilityAnalyzer.Analyze(Mesh, rootId);
+            return MeshDtoMapper.ToTraversalResponse(report);
+        }
+    }
+
     public UniqueAlertsResponse GetUniqueActiveAlerts()
     {
         lock (_gate)

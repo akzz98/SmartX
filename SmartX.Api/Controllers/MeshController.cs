@@ -28,4 +28,25 @@ public sealed class MeshController : ControllerBase
         return Task.FromResult<ActionResult<MeshTopologySnapshotResponse>>(
             Ok(_store.GetMeshTopologySnapshot()));
     }
+
+    /// <summary>
+    /// GET /api/mesh/traversal?root=sx-gateway — BFS visit order, down/cut-off nodes, hop suggestions.
+    /// </summary>
+    [HttpGet("traversal")]
+    public Task<ActionResult<MeshTraversalResponse>> GetTraversal(
+        [FromQuery] string? root,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            return Task.FromResult<ActionResult<MeshTraversalResponse>>(
+                Ok(_store.GetMeshTraversal(root)));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return Task.FromResult<ActionResult<MeshTraversalResponse>>(NotFound(new { error = ex.Message }));
+        }
+    }
 }

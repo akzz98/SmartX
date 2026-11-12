@@ -56,4 +56,33 @@ public static class MeshDtoMapper
             LinkKind = edge.LinkKind,
             Label = edge.Label
         };
+
+    public static MeshTraversalResponse ToTraversalResponse(MeshReachabilityReport report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+
+        return new MeshTraversalResponse
+        {
+            RootId = report.RootId,
+            Mode = report.Mode,
+            VisitOrder = report.VisitOrder.ToList(),
+            ReachableOnlineIds = report.ReachableOnlineIds.ToList(),
+            DownNodeIds = report.DownNodeIds.ToList(),
+            CutOffOnlineIds = report.CutOffOnlineIds.ToList(),
+            UnreachableIds = report.UnreachableIds.ToList(),
+            DownNodeSuggestions = report.DownNodeSuggestions
+                .Select(ToHopSuggestionResponse)
+                .ToList()
+        };
+    }
+
+    public static MeshHopSuggestionResponse ToHopSuggestionResponse(MeshHopSuggestion suggestion)
+        => new()
+        {
+            DownNodeId = suggestion.DownNodeId,
+            IdealPathFromRoot = suggestion.IdealPathFromRoot.ToList(),
+            OnlineNeighbourIds = suggestion.OnlineNeighbourIds.ToList(),
+            SuggestedNextHop = suggestion.SuggestedNextHop,
+            AlternatePathToNextHop = suggestion.AlternatePathToNextHop.ToList()
+        };
 }
