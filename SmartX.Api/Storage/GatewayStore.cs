@@ -35,14 +35,20 @@ public sealed class GatewayStore
         Part2DemoSeeder.SeedCriticalPowerPriorityBypass(this);
         TelemetryFaultSeeder.SeedRecovery(this);
         Part2DemoSeeder.SeedRecommendationPatterns(this);
+        Part2DemoSeeder.SeedPriorityTieBreaker(this);
+        // Leave a short FIFO backlog for TelemetryQueueConsumer after the host starts.
+        Part2DemoSeeder.SeedConsumerBacklog(this);
     }
 
     public List<DeploymentNode> DeploymentRoots { get; }
 
+    /// <summary>Wakes the hosted queue consumer when work is enqueued.</summary>
+    public QueueWorkSignal WorkSignal { get; } = new();
+
     /// <summary>Custom fleet collection: lookup + ingest counters, not a bare List.</summary>
     public SensorFleet Fleet { get; } = new();
 
-    /// <summary>Standard FIFO ingest queue. Packets enqueue here, then drain into typed buffers.</summary>
+    /// <summary>Standard FIFO ingest queue. Packets enqueue here; the background consumer drains them.</summary>
     public StandardTelemetryQueue StandardIngestQueue { get; } = new();
 
     /// <summary>Critical alerts bypass the FIFO stream via this priority queue.</summary>
@@ -372,19 +378,19 @@ public sealed class GatewayStore
     }
 
     public bool TryIngestEnvironmental(TelemetryPacket<EnvironmentalReading> packet, out string? error)
-        => TryEnqueueAndDrain(packet.DeviceId, QueuedTelemetryItem.FromEnvironmental(packet), out error);
+        => TryEnqueueOnly(packet.DeviceId, QueuedTelemetryItem.FromEnvironmental(packet), out error);
 
     public bool TryIngestPower(TelemetryPacket<PowerReading> packet, out string? error)
-        => TryEnqueueAndDrain(packet.DeviceId, QueuedTelemetryItem.FromPower(packet), out error);
+        => TryEnqueueOnly(packet.DeviceId, QueuedTelemetryItem.FromPower(packet), out error);
 
     public bool TryIngestActuator(TelemetryPacket<ActuatorReading> packet, out string? error)
-        => TryEnqueueAndDrain(packet.DeviceId, QueuedTelemetryItem.FromActuator(packet), out error);
+        => TryEnqueueOnly(packet.DeviceId, QueuedTelemetryItem.FromActuator(packet), out error);
 
     /// <summary>
-    /// Standard path: validate device, enqueue on the FIFO queue, then drain so packets
-    /// hit typed buffers in First-In-First-Out order (not List-append-only).
+    /// Live ingest path: validate device and enqueue on the FIFO queue only.
+    /// <see cref="TelemetryQueueConsumer"/> dequeues in the background (priority first).
     /// </summary>
-    private bool TryEnqueueAndDrain(string deviceId, QueuedTelemetryItem item, out string? error)
+    private bool TryEnqueueOnly(string deviceId, QueuedTelemetryItem item, out string? error)
     {
         lock (_gate)
         {
@@ -401,17 +407,16 @@ public sealed class GatewayStore
             }
 
             StandardIngestQueue.Enqueue(item);
-            // Priority alerts always drain first so critical work bypasses FIFO backlog.
-            DrainPriorityAlertsLocked();
-            DrainStandardQueueLocked();
             error = null;
-            return true;
         }
+
+        WorkSignal.Notify();
+        return true;
     }
 
     /// <summary>
-    /// Simulation/demo: park a packet on the FIFO queue without draining it,
-    /// so a priority alert can prove it bypasses backlog.
+    /// Simulation/demo: park a packet on the FIFO queue without waking a full drain cycle
+    /// beyond Notify, so a priority alert can prove it bypasses backlog.
     /// </summary>
     public void EnqueueStandardWithoutDrain(QueuedTelemetryItem item)
     {
@@ -421,34 +426,81 @@ public sealed class GatewayStore
         {
             StandardIngestQueue.Enqueue(item);
         }
+
+        WorkSignal.Notify();
     }
 
     /// <summary>
-    /// Drains priority alerts first, then the standard FIFO queue.
+    /// Seed/bootstrap helper: drains priority alerts first, then the standard FIFO queue.
+    /// Prefer <see cref="ProcessQueuedWork"/> / the hosted consumer at runtime.
     /// </summary>
-    public void DrainPendingQueues()
+    public void DrainPendingQueues() => ProcessQueuedWork();
+
+    /// <summary>
+    /// Background consumer entry: process every waiting priority alert, then every FIFO packet.
+    /// Returns how many items were applied.
+    /// </summary>
+    public int ProcessQueuedWork()
     {
         lock (_gate)
         {
-            DrainPriorityAlertsLocked();
-            DrainStandardQueueLocked();
+            var processed = 0;
+            processed += DrainPriorityAlertsLocked();
+            processed += DrainStandardQueueLocked();
+            return processed;
         }
     }
 
     /// <summary>
-    /// Raises an alert onto the priority queue and processes it immediately,
-    /// without waiting behind standard FIFO telemetry. Duplicate device+reason
-    /// (or disconnect) keys are suppressed by <see cref="UniqueAlertSet"/>.
+    /// Process only the priority queue (FIFO backlog stays). Used by seeds to prove bypass
+    /// and tie-break ordering without the hosted worker.
+    /// </summary>
+    public int ProcessPriorityQueue()
+    {
+        lock (_gate)
+        {
+            return DrainPriorityAlertsLocked();
+        }
+    }
+
+    /// <summary>
+    /// Dequeue and apply a single priority alert (for tie-breaker proofs).
+    /// </summary>
+    public bool TryProcessNextPriorityAlert(out PriorityAlert? alert)
+    {
+        lock (_gate)
+        {
+            if (!PriorityAlertQueue.TryDequeue(out alert) || alert is null)
+            {
+                return false;
+            }
+
+            ApplyPriorityAlertLocked(alert);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Raises an alert onto the priority queue for the background consumer.
+    /// Duplicate device+reason (or disconnect) keys are suppressed by <see cref="UniqueAlertSet"/>.
     /// </summary>
     /// <returns>False when the HashSet already held this alert key (no spam).</returns>
     public bool RaisePriorityAlert(PriorityAlert alert)
     {
         ArgumentNullException.ThrowIfNull(alert);
 
+        bool accepted;
         lock (_gate)
         {
-            return TryRaisePriorityAlertLocked(alert);
+            accepted = TryRaisePriorityAlertLocked(alert);
         }
+
+        if (accepted)
+        {
+            WorkSignal.Notify();
+        }
+
+        return accepted;
     }
 
     public Task<bool> RaisePriorityAlertAsync(PriorityAlert alert, CancellationToken cancellationToken)
@@ -484,7 +536,6 @@ public sealed class GatewayStore
         }
 
         PriorityAlertQueue.Enqueue(alert);
-        DrainPriorityAlertsLocked();
         return true;
     }
 
@@ -498,12 +549,16 @@ public sealed class GatewayStore
         return UniqueAlertSet.ErrorKey(alert.DeviceId, alert.Reason);
     }
 
-    private void DrainPriorityAlertsLocked()
+    private int DrainPriorityAlertsLocked()
     {
+        var processed = 0;
         while (PriorityAlertQueue.TryDequeue(out var alert) && alert is not null)
         {
             ApplyPriorityAlertLocked(alert);
+            processed++;
         }
+
+        return processed;
     }
 
     private void ApplyPriorityAlertLocked(PriorityAlert alert)
@@ -527,12 +582,16 @@ public sealed class GatewayStore
         Recommendations.RecordFaultContext(alert.DeviceId, faultKey);
     }
 
-    private void DrainStandardQueueLocked()
+    private int DrainStandardQueueLocked()
     {
+        var processed = 0;
         while (StandardIngestQueue.TryDequeue(out var item) && item is not null)
         {
             ApplyQueuedItemLocked(item);
+            processed++;
         }
+
+        return processed;
     }
 
     private void ApplyQueuedItemLocked(QueuedTelemetryItem item)

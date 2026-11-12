@@ -50,6 +50,8 @@ public static class TelemetryFaultSeeder
                 throw new InvalidOperationException($"Temperature spike ingest failed for '{device.Id}': {error}");
             }
         }
+
+        store.DrainPendingQueues();
     }
 
     public const string StuckValveDeviceId = "sx-act-rack2-valve";
@@ -99,6 +101,8 @@ public static class TelemetryFaultSeeder
                 throw new InvalidOperationException($"Stuck actuator ingest failed for '{device.Id}': {error}");
             }
         }
+
+        store.DrainPendingQueues();
     }
 
     public const string SilentSensorDeviceId = "sx-env-sump-temp";
@@ -124,6 +128,7 @@ public static class TelemetryFaultSeeder
             - TimeSpan.FromMinutes(5);
 
         TelemetryStreamSeeder.SeedHealthyStream(store, device, lastSampleAt, new Random(7112));
+        store.DrainPendingQueues();
     }
 
     public const string MalformedPacketDeviceId = "sx-env-rack3-ph";
@@ -246,6 +251,8 @@ public static class TelemetryFaultSeeder
 
             TelemetryStreamSeeder.SeedHealthyStream(store, device, lastSampleAt, rng);
         }
+
+        store.DrainPendingQueues();
     }
 
     // Climb back into the 18–26 °C crop band after the 44 °C spike.
@@ -295,9 +302,15 @@ public static class TelemetryFaultSeeder
             RaisedAt = DateTimeOffset.UtcNow
         });
 
-        if (store.PriorityAlertQueue.TotalDequeued != priorityDequeuedBefore + 1)
+        // Consumer path: process priority only so FIFO backlog stays parked (bypass proof).
+        if (store.ProcessPriorityQueue() < 1)
         {
             throw new InvalidOperationException("Critical moisture alert was not dequeued on the priority path.");
+        }
+
+        if (store.PriorityAlertQueue.TotalDequeued != priorityDequeuedBefore + 1)
+        {
+            throw new InvalidOperationException("Critical moisture alert dequeue counter did not advance.");
         }
 
         if (store.StandardIngestQueue.Depth != fifoDepthBeforeBypass)
@@ -361,6 +374,8 @@ public static class TelemetryFaultSeeder
         {
             throw new InvalidOperationException("After recovery clear, the moisture alert should be accepted again.");
         }
+
+        store.ProcessPriorityQueue();
     }
 
     /// <summary>
@@ -403,5 +418,7 @@ public static class TelemetryFaultSeeder
                 throw new InvalidOperationException($"Recovery ingest failed for '{device.Id}': {error}");
             }
         }
+
+        store.DrainPendingQueues();
     }
 }

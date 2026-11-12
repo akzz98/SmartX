@@ -35,6 +35,9 @@ public static class TelemetryStreamSeeder
 
             SeedHealthyStream(store, device, lastSampleAt: now, rng);
         }
+
+        // Live ingest only enqueues; apply the boot stream before fault overlays read ingest state.
+        store.DrainPendingQueues();
     }
 
     /// <summary>

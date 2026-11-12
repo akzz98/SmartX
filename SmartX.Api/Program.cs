@@ -34,6 +34,7 @@ builder.Services.AddControllers()
 builder.Services.AddOpenApi();
 // One in-memory fleet for the simulation so registration (and later ingest) share the same devices.
 builder.Services.AddSingleton<SmartX.Api.Storage.GatewayStore>();
+builder.Services.AddHostedService<SmartX.Api.Storage.TelemetryQueueConsumer>();
 builder.Services.AddSingleton<SmartX.Api.Storage.AttachmentFileStore>();
 builder.Services.Configure<FormOptions>(options =>
 {

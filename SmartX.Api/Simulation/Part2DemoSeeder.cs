@@ -68,12 +68,11 @@ public static class Part2DemoSeeder
             throw new InvalidOperationException("FIFO burst did not increase TotalEnqueued as expected.");
         }
 
-        // Drain so the rest of the gateway sees a consistent fleet (depth returns to 0).
-        store.DrainPendingQueues();
-
-        if (store.StandardIngestQueue.Depth != 0)
+        // Leave the burst parked briefly as backlog evidence (PeakDepth already captured).
+        // Seed/bootstrap helpers and TelemetryQueueConsumer drain afterward — request threads do not.
+        if (store.StandardIngestQueue.Depth < FifoBurstPacketCount)
         {
-            throw new InvalidOperationException("FIFO queue should be empty after the burst drain.");
+            throw new InvalidOperationException("FIFO burst backlog should still be sitting on the queue before the consumer runs.");
         }
     }
 
@@ -124,7 +123,8 @@ public static class Part2DemoSeeder
             throw new InvalidOperationException("Critical power alert was suppressed unexpectedly.");
         }
 
-        if (store.PriorityAlertQueue.TotalDequeued != priorityDequeuedBefore + 1)
+        if (store.ProcessPriorityQueue() < 1
+            || store.PriorityAlertQueue.TotalDequeued != priorityDequeuedBefore + 1)
         {
             throw new InvalidOperationException("Critical power alert was not dequeued on the priority path.");
         }
@@ -169,6 +169,11 @@ public static class Part2DemoSeeder
         if (!first)
         {
             throw new InvalidOperationException("First disconnect alert should have been accepted by the HashSet.");
+        }
+
+        if (store.ProcessPriorityQueue() < 1)
+        {
+            throw new InvalidOperationException("First disconnect alert was not processed by the priority consumer path.");
         }
 
         if (store.ProcessedPriorityAlerts.Count != processedBefore + 1
@@ -289,6 +294,119 @@ public static class Part2DemoSeeder
         {
             throw new InvalidOperationException(
                 "Expected a moisture/pump related suggestion after recommendation bootstrap.");
+        }
+    }
+
+    /// <summary>
+    /// Two equal-severity Warning alerts: newer is enqueued first, older RaisedAt second.
+    /// Tie-breaker must dequeue the earlier RaisedAt first.
+    /// </summary>
+    public static void SeedPriorityTieBreaker(GatewayStore store)
+    {
+        var earlierDevice = store.FindSensor("sx-env-rack2-moist")
+            ?? throw new InvalidOperationException("Tie-breaker earlier device missing.");
+        var laterDevice = store.FindSensor("sx-env-rack3-temp")
+            ?? throw new InvalidOperationException("Tie-breaker later device missing.");
+
+        var now = DateTimeOffset.UtcNow;
+        var later = new PriorityAlert
+        {
+            DeviceId = laterDevice.Id,
+            MacAddress = laterDevice.MacAddress,
+            Severity = AlertSeverity.Warning,
+            Reason = "Tie-break later warning — rack 3 temp drift",
+            RaisedAt = now
+        };
+        var earlier = new PriorityAlert
+        {
+            DeviceId = earlierDevice.Id,
+            MacAddress = earlierDevice.MacAddress,
+            Severity = AlertSeverity.Warning,
+            Reason = "Tie-break earlier warning — rack 2 moisture drift",
+            RaisedAt = now.AddSeconds(-30)
+        };
+
+        if (!store.RaisePriorityAlert(later) || !store.RaisePriorityAlert(earlier))
+        {
+            throw new InvalidOperationException("Tie-breaker seed alerts were suppressed unexpectedly.");
+        }
+
+        if (store.PriorityAlertQueue.Depth != 2)
+        {
+            throw new InvalidOperationException(
+                $"Expected 2 waiting priority alerts before tie-break dequeue; was {store.PriorityAlertQueue.Depth}.");
+        }
+
+        if (!store.TryProcessNextPriorityAlert(out var first) || first is null)
+        {
+            throw new InvalidOperationException("Tie-breaker could not dequeue the first alert.");
+        }
+
+        if (!string.Equals(first.DeviceId, earlierDevice.Id, StringComparison.OrdinalIgnoreCase)
+            || !first.Reason.Contains("earlier", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Tie-breaker failed: expected earlier alert first, got '{first.DeviceId}: {first.Reason}'.");
+        }
+
+        if (!store.TryProcessNextPriorityAlert(out var second) || second is null)
+        {
+            throw new InvalidOperationException("Tie-breaker could not dequeue the second alert.");
+        }
+
+        if (!string.Equals(second.DeviceId, laterDevice.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Tie-breaker failed: expected later alert second, got '{second.DeviceId}'.");
+        }
+    }
+
+    public const string ConsumerBacklogDeviceId = "sx-env-rack2-temp";
+
+    public const int ConsumerBacklogPacketCount = 4;
+
+    /// <summary>
+    /// Parks a small FIFO backlog with no drain so <see cref="TelemetryQueueConsumer"/>
+    /// has real work after the host starts (lecturer: separate consumer).
+    /// </summary>
+    public static void SeedConsumerBacklog(GatewayStore store)
+    {
+        var device = store.FindSensor(ConsumerBacklogDeviceId)
+            ?? throw new InvalidOperationException($"Consumer backlog target '{ConsumerBacklogDeviceId}' missing.");
+
+        var ingest = store.GetIngestState(device.Id)
+            ?? throw new InvalidOperationException($"No ingest state for '{device.Id}'.");
+
+        var timestamp = (ingest.LastIngestedAt ?? DateTimeOffset.UtcNow).AddSeconds(2);
+        var sequence = ingest.LastSequence;
+
+        for (var i = 0; i < ConsumerBacklogPacketCount; i++)
+        {
+            sequence++;
+            timestamp = timestamp.AddSeconds(1);
+            var packet = new TelemetryPacket<EnvironmentalReading>
+            {
+                DeviceId = device.Id,
+                Timestamp = timestamp,
+                Sequence = sequence,
+                SignalQuality = 90,
+                Payload = new EnvironmentalReading(21.2f + (i * 0.02f), EnvironmentalMetric.Temperature)
+            };
+
+            var validation = TelemetryPacketValidator.Validate(packet, device);
+            if (!validation.IsValid)
+            {
+                throw new InvalidOperationException(
+                    $"Consumer backlog packet rejected: {string.Join(" ", validation.Errors)}");
+            }
+
+            store.EnqueueStandardWithoutDrain(QueuedTelemetryItem.FromEnvironmental(packet));
+        }
+
+        if (store.StandardIngestQueue.Depth < ConsumerBacklogPacketCount)
+        {
+            throw new InvalidOperationException(
+                $"Expected consumer backlog depth >= {ConsumerBacklogPacketCount}; was {store.StandardIngestQueue.Depth}.");
         }
     }
 }
