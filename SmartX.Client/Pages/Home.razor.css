@@ -90,3 +90,27 @@
     margin: 1.25rem 0 0;
     font-size: 0.9rem;
 }
+
+.startup-pillar-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 1rem;
+    margin-top: 1.35rem;
+}
+
+.startup-pillar-links h3 {
+    margin: 0 0 0.35rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #5b6472;
+}
+
+.startup-pillar-links p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.startup-locked-note {
+    color: #7a8490;
+}

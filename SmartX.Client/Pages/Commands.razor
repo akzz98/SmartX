@@ -1,4 +1,5 @@
 @page "/commands"
+@implements IAsyncDisposable
 @inject HttpClient Http
 @inject OperatorSessionState Session
 
@@ -13,6 +14,11 @@
         <p class="commands-lead">
             Standard FIFO ingest vs critical priority bypass. Filter the fleet by category and
             alert/health state before issuing overrides.
+        </p>
+        <p class="commands-auto" aria-live="polite">
+            Auto-refresh every @AutoRefreshSeconds s
+            · last @(lastAutoRefreshAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")
+            @(autoRefreshPaused ? "· paused while override in flight" : string.Empty)
         </p>
     </header>
 
@@ -340,11 +346,13 @@
         ·
         <a href="">Startup menu</a>
         ·
-        <button type="button" class="commands-refresh" @onclick="ReloadAsync">Refresh</button>
+        <button type="button" class="commands-refresh" @onclick="() => ReloadAsync()">Refresh</button>
     </p>
 </section>
 
 @code {
+    private const int AutoRefreshSeconds = 5;
+
     private StreamSnapshotResponse? snapshot;
     private TimelineHistoryResponse? timeline;
     private SuggestionsResponse? suggestions;
@@ -357,7 +365,53 @@
     private string? issueMessage;
     private string? issueError;
 
-    protected override async Task OnInitializedAsync() => await ReloadAsync();
+    private CancellationTokenSource? refreshCts;
+    private DateTimeOffset? lastAutoRefreshAt;
+    private bool autoRefreshPaused;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+        refreshCts = new CancellationTokenSource();
+        _ = RunAutoRefreshAsync(refreshCts.Token);
+    }
+
+    private async Task RunAutoRefreshAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(AutoRefreshSeconds));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                autoRefreshPaused = issueBusy || undoBusy;
+                if (autoRefreshPaused)
+                {
+                    await InvokeAsync(StateHasChanged);
+                    continue;
+                }
+
+                await ReloadAsync(quiet: true);
+                lastAutoRefreshAt = DateTimeOffset.UtcNow;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Page disposed — stop polling.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (refreshCts is null)
+        {
+            return;
+        }
+
+        await refreshCts.CancelAsync();
+        refreshCts.Dispose();
+        refreshCts = null;
+    }
 
     private async Task ClearFiltersAsync()
     {
@@ -525,9 +579,13 @@
         }
     }
 
-    private async Task ReloadAsync()
+    private async Task ReloadAsync(bool quiet = false)
     {
-        loadError = null;
+        if (!quiet)
+        {
+            loadError = null;
+        }
+
         try
         {
             snapshot = await Http.GetFromJsonAsync<StreamSnapshotResponse>("api/stream/snapshot", GatewayJson.Options);
@@ -541,9 +599,19 @@
 
             await LoadFilteredDevicesAsync();
             await LoadSuggestionsAsync();
+            if (quiet)
+            {
+                loadError = null;
+            }
         }
         catch (HttpRequestException)
         {
+            if (quiet && snapshot is not null)
+            {
+                // Keep last good frame during a brief blip; surface error only when nothing is shown.
+                return;
+            }
+
             snapshot = null;
             timeline = null;
             suggestions = null;
@@ -553,6 +621,11 @@
         }
         catch (Exception)
         {
+            if (quiet && snapshot is not null)
+            {
+                return;
+            }
+
             snapshot = null;
             timeline = null;
             suggestions = null;

@@ -1,6 +1,6 @@
 ﻿@page "/"
 
-@* Startup menu: telemetry (Part 1) and command stream (Part 2) enabled; mesh stays locked for PoE. *@
+@* Three-pillar startup: Telemetry + Command Stream live; Mesh locked until Final PoE Stage 2. *@
 
 <PageTitle>Smart-X Gateway — Startup</PageTitle>
 
@@ -9,39 +9,54 @@
         <p class="startup-kicker">Smart-X simulated IoT gateway</p>
         <h1>Select an operational pillar</h1>
         <p class="startup-lead">
-            Hydroponics, utilities, and site-meter telemetry. Progressive Disclosure covers
-            ingestion; Part 2 adds the real-time command stream.
+            Three pillars, one gateway. Use the sidebar groups — Telemetry, Command stream, Mesh routing —
+            instead of a flat page list. Mesh unlocks in the Final PoE.
         </p>
     </header>
 
     <div class="pillar-grid">
         <a class="pillar pillar-enabled" href="telemetry">
-            <span class="pillar-status">Available</span>
+            <span class="pillar-status">Pillar 1 · Available</span>
             <h2>Sensor Data Ingestion and Telemetry</h2>
             <p>Register ESP32 devices, ingest heterogeneous packets, and investigate health and freshness.</p>
             <span class="pillar-action">Open telemetry dashboard</span>
         </a>
 
         <a class="pillar pillar-enabled" href="commands">
-            <span class="pillar-status">Available</span>
+            <span class="pillar-status">Pillar 2 · Available</span>
             <h2>Real-Time Command Stream and History</h2>
             <p>Manual actuator overrides, priority alert bypass, undo stack, and suggested actions.</p>
             <span class="pillar-action">Open command stream</span>
         </a>
 
         <div class="pillar pillar-locked" aria-disabled="true">
-            <span class="pillar-status">Locked</span>
+            <span class="pillar-status">Pillar 3 · Locked</span>
             <h2>Network Topology and Mesh Routing</h2>
-            <p>Site mesh and routing. Visible for the three-pillar layout; enabled in the final PoE.</p>
-            <span class="pillar-action">Unavailable until final PoE</span>
+            <p>Site mesh, BFS/DFS hops, and power-efficient MST routing. Enabled in Final PoE Stage 2.</p>
+            <span class="pillar-action">Unavailable until Final PoE</span>
         </div>
     </div>
 
-    <p class="startup-ops">
-        <a href="telemetry/register">Register ESP32</a>
-        ·
-        <a href="telemetry/ingest">Ingest a packet</a>
-        ·
-        <a href="commands">Command stream</a>
-    </p>
+    <div class="startup-pillar-links">
+        <div>
+            <h3>Telemetry shortcuts</h3>
+            <p>
+                <a href="telemetry">Overview</a>
+                ·
+                <a href="telemetry/fleet">Fleet</a>
+                ·
+                <a href="telemetry/register">Register</a>
+                ·
+                <a href="telemetry/ingest">Ingest</a>
+            </p>
+        </div>
+        <div>
+            <h3>Command stream shortcuts</h3>
+            <p><a href="commands">Stream console</a></p>
+        </div>
+        <div>
+            <h3>Mesh routing</h3>
+            <p class="startup-locked-note">Topology dashboard locked until Stage 2.</p>
+        </div>
+    </div>
 </section>
