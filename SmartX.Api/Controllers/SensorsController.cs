@@ -207,6 +207,31 @@ public sealed class SensorsController : ControllerBase
         return Ok(await _store.HistoryForAsync(device, take, cancellationToken));
     }
 
+    /// <summary>
+    /// AVL-backed timestamp range query (Final PoE trees). Example:
+    /// GET /api/sensors/sx-env-rack1-moist/history/range?from=...&amp;to=...&amp;metric=Moisture
+    /// </summary>
+    [HttpGet("{id}/history/range")]
+    public async Task<ActionResult<TelemetryRangeHistoryResponse>> HistoryRange(
+        string id,
+        [FromQuery] DateTimeOffset? from,
+        [FromQuery] DateTimeOffset? to,
+        [FromQuery] string? metric,
+        CancellationToken cancellationToken = default)
+    {
+        var device = await _store.FindSensorAsync(id, cancellationToken);
+        if (device is null)
+        {
+            return NotFound();
+        }
+
+        var tree = _store.HistoryIndex.GetTree(device.Id);
+        var rangeFrom = from ?? tree?.MinTimestamp ?? DateTimeOffset.UtcNow.AddHours(-2);
+        var rangeTo = to ?? tree?.MaxTimestamp ?? DateTimeOffset.UtcNow;
+
+        return Ok(await _store.QueryHistoryRangeAsync(device.Id, rangeFrom, rangeTo, metric, cancellationToken));
+    }
+
     private static void CountBy(
         Dictionary<string, int> target,
         IReadOnlyList<SensorDevice> sensors,

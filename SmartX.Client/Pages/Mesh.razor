@@ -1,6 +1,7 @@
 @page "/mesh"
+@inject HttpClient Http
 
-@* Pillar 3 shell — graph / BFS-DFS / MST land in Stages 3–7. *@
+@* Pillar 3: AVL range history now; graph / BFS-DFS / MST land in Stages 4–7. *@
 
 <PageTitle>Mesh topology — Smart-X</PageTitle>
 
@@ -9,16 +10,115 @@
         <p class="mesh-kicker">Final PoE · Network Topology and Mesh Routing</p>
         <h1>Topology dashboard</h1>
         <p class="mesh-lead">
-            Visualise the ESP32 mesh, track hops by device id or MAC, run BFS/DFS for
-            reachable vs down nodes, and compute a power-efficient MST back to the gateway.
-            Tree-backed historical range queries for a selected sensor land next.
+            Query timestamped telemetry through the per-device AVL history index
+            (range walk ≈ log n + k, not a full unsorted scan). Graph hops and MST follow next.
         </p>
     </header>
 
-    <article class="mesh-panel">
-        <h2>Coming online in Stages 3–7</h2>
+    <form class="sx-form mesh-range" @onsubmit="RunRangeQueryAsync" @onsubmit:preventDefault>
+        <label>
+            Sensor
+            <select @bind="selectedDeviceId">
+                <option value="">Select device</option>
+                @foreach (var sensor in sensors)
+                {
+                    <option value="@sensor.Id">@sensor.Id (@sensor.Category)</option>
+                }
+            </select>
+        </label>
+        <label>
+            Metric (optional)
+            <input @bind="metricFilter" placeholder="e.g. Moisture" />
+        </label>
+        <label>
+            From (UTC local)
+            <input type="datetime-local" @bind="fromLocal" />
+        </label>
+        <label>
+            To (UTC local)
+            <input type="datetime-local" @bind="toLocal" />
+        </label>
+        <div class="sx-form-actions">
+            <button type="submit" disabled="@busy">Run AVL range query</button>
+            <button type="button" disabled="@busy" @onclick="UseFullTreeWindowAsync">Use full tree window</button>
+        </div>
+    </form>
+
+    @if (loadError is not null)
+    {
+        <p class="mesh-error" role="alert">@loadError</p>
+    }
+
+    @if (rangeResult is not null)
+    {
+        <article class="mesh-panel">
+            <h2>Range result — @rangeResult.DeviceId</h2>
+            <dl class="mesh-meta">
+                <div>
+                    <dt>Matches</dt>
+                    <dd>@rangeResult.MatchCount</dd>
+                </div>
+                <div>
+                    <dt>AVL tree size</dt>
+                    <dd>@rangeResult.TreeSize</dd>
+                </div>
+                <div>
+                    <dt>Nodes visited</dt>
+                    <dd>@rangeResult.NodesVisited</dd>
+                </div>
+                <div>
+                    <dt>Metric filter</dt>
+                    <dd>@(rangeResult.MetricFilter ?? "any")</dd>
+                </div>
+            </dl>
+            <p class="mesh-hint">
+                Efficiency: visited @rangeResult.NodesVisited node(s) of @rangeResult.TreeSize stored
+                @(rangeResult.TreeSize > 0 && rangeResult.NodesVisited < rangeResult.TreeSize
+                    ? "— narrower than a full list scan."
+                    : ".")
+            </p>
+
+            @if (rangeResult.Points.Count == 0)
+            {
+                <p class="mesh-hint">No samples in this window.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="mesh-table">
+                        <thead>
+                            <tr>
+                                <th>Time (UTC)</th>
+                                <th>Seq</th>
+                                <th>Metric</th>
+                                <th>Value</th>
+                                <th>Summary</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var point in rangeResult.Points)
+                            {
+                                <tr>
+                                    <td>@point.Timestamp.UtcDateTime.ToString("u")</td>
+                                    <td>@point.Sequence</td>
+                                    <td>@point.Metric</td>
+                                    <td>
+                                        @(point.NumericValue?.ToString("0.###")
+                                          ?? (point.BoolValue is { } flag ? (flag ? "active" : "inactive") : "—"))
+                                    </td>
+                                    <td>@point.Summary</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </article>
+    }
+
+    <article class="mesh-panel mesh-panel-muted">
+        <h2>Still coming in Stages 4–7</h2>
         <ul>
-            <li>Self-balancing tree for timestamp range history</li>
             <li>Graph model of sensors and wireless links</li>
             <li>BFS/DFS traversal and down-node hop alternatives</li>
             <li>Prim’s or Kruskal’s MST for efficient routing</li>
@@ -32,3 +132,107 @@
         </p>
     </article>
 </section>
+
+@code {
+    private List<SensorResponse> sensors = [];
+    private string selectedDeviceId = "sx-env-rack1-moist";
+    private string metricFilter = "Moisture";
+    private DateTime? fromLocal;
+    private DateTime? toLocal;
+    private TelemetryRangeHistoryResponse? rangeResult;
+    private string? loadError;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var list = await Http.GetFromJsonAsync<SensorListResponse>("api/sensors", GatewayJson.Options);
+            sensors = list?.Sensors ?? [];
+            if (sensors.Count > 0 && sensors.All(s => s.Id != selectedDeviceId))
+            {
+                selectedDeviceId = sensors[0].Id;
+                metricFilter = string.Empty;
+            }
+        }
+        catch (HttpRequestException)
+        {
+            loadError = "Gateway unreachable. Start SmartX.Api and reload.";
+        }
+    }
+
+    private async Task UseFullTreeWindowAsync()
+    {
+        if (string.IsNullOrWhiteSpace(selectedDeviceId))
+        {
+            loadError = "Select a sensor first.";
+            return;
+        }
+
+        fromLocal = null;
+        toLocal = null;
+        await RunRangeQueryAsync();
+    }
+
+    private async Task RunRangeQueryAsync()
+    {
+        loadError = null;
+        rangeResult = null;
+
+        if (string.IsNullOrWhiteSpace(selectedDeviceId))
+        {
+            loadError = "Select a sensor before running a range query.";
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var query = new List<string>();
+            if (fromLocal is { } from)
+            {
+                query.Add("from=" + Uri.EscapeDataString(ToUtcIso(from)));
+            }
+
+            if (toLocal is { } to)
+            {
+                query.Add("to=" + Uri.EscapeDataString(ToUtcIso(to)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(metricFilter))
+            {
+                query.Add("metric=" + Uri.EscapeDataString(metricFilter.Trim()));
+            }
+
+            var path = $"api/sensors/{Uri.EscapeDataString(selectedDeviceId.Trim())}/history/range";
+            if (query.Count > 0)
+            {
+                path += "?" + string.Join("&", query);
+            }
+
+            rangeResult = await Http.GetFromJsonAsync<TelemetryRangeHistoryResponse>(path, GatewayJson.Options);
+            if (rangeResult is null)
+            {
+                loadError = "Gateway returned an empty range payload.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            loadError = "Gateway unreachable. Start SmartX.Api and try again.";
+        }
+        catch (Exception)
+        {
+            loadError = "The AVL range query failed.";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private static string ToUtcIso(DateTime local)
+    {
+        var unspecified = DateTime.SpecifyKind(local, DateTimeKind.Local);
+        return unspecified.ToUniversalTime().ToString("o");
+    }
+}

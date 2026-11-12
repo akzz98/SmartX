@@ -64,6 +64,12 @@ public sealed class GatewayStore
     /// <summary>HashSet of unique active disconnect/error keys.</summary>
     public UniqueAlertSet ActiveUniqueAlerts { get; } = new();
 
+    /// <summary>
+    /// Per-device AVL forests for timestamp range history (Final PoE trees).
+    /// Populated on every accepted ingest; range queries do not scan unsorted lists.
+    /// </summary>
+    public TelemetryHistoryIndex HistoryIndex { get; } = new();
+
     /// <summary>Search/command sequence frequency map for Suggested Actions.</summary>
     public RecommendationEngine Recommendations { get; } = new();
 
@@ -604,6 +610,7 @@ public sealed class GatewayStore
                     (payload, _) => TelemetryHealthClassifier.Classify(payload),
                     () => RawBatches.AppendEnvironmental(packet),
                     RawBatches.PromoteEnvironmentalPackets);
+                HistoryIndex.Insert(TelemetryHistoryRecord.FromEnvironmental(packet));
                 break;
 
             case SensorCategory.PowerConsumption when item.Power is { } packet:
@@ -613,6 +620,7 @@ public sealed class GatewayStore
                     (payload, _) => TelemetryHealthClassifier.Classify(payload),
                     () => RawBatches.AppendPower(packet),
                     RawBatches.PromotePowerPackets);
+                HistoryIndex.Insert(TelemetryHistoryRecord.FromPower(packet));
                 break;
 
             case SensorCategory.Actuator when item.Actuator is { } packet:
@@ -622,6 +630,7 @@ public sealed class GatewayStore
                     (payload, device) => TelemetryHealthClassifier.Classify(payload, device.ExpectedIsActive),
                     () => RawBatches.AppendActuator(packet),
                     RawBatches.PromoteActuatorPackets);
+                HistoryIndex.Insert(TelemetryHistoryRecord.FromActuator(packet));
                 break;
         }
     }
@@ -917,6 +926,54 @@ public sealed class GatewayStore
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(HistoryFor(device, take));
+    }
+
+    /// <summary>
+    /// AVL timestamp range query for one device. Optional metric filter (e.g. Moisture).
+    /// </summary>
+    public TelemetryRangeHistoryResponse QueryHistoryRange(
+        string deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        string? metric)
+    {
+        lock (_gate)
+        {
+            var tree = HistoryIndex.GetTree(deviceId);
+            var points = HistoryIndex.QueryRange(deviceId, from, to, metric, out var visited, out var treeSize);
+            return new TelemetryRangeHistoryResponse
+            {
+                DeviceId = deviceId,
+                From = from,
+                To = to,
+                MetricFilter = string.IsNullOrWhiteSpace(metric) ? null : metric.Trim(),
+                MatchCount = points.Count,
+                TreeSize = treeSize,
+                NodesVisited = visited,
+                TreeMinTimestamp = tree?.MinTimestamp,
+                TreeMaxTimestamp = tree?.MaxTimestamp,
+                Points = points.Select(p => new TelemetryRangePointResponse
+                {
+                    Timestamp = p.Timestamp,
+                    Sequence = p.Sequence,
+                    Metric = p.Metric,
+                    NumericValue = p.NumericValue,
+                    BoolValue = p.BoolValue,
+                    Summary = p.Summary
+                }).ToList()
+            };
+        }
+    }
+
+    public Task<TelemetryRangeHistoryResponse> QueryHistoryRangeAsync(
+        string deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        string? metric,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(QueryHistoryRange(deviceId, from, to, metric));
     }
 
     public IReadOnlyList<TelemetryPacket<PowerReading>> SnapshotPowerPackets()

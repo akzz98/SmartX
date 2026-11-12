@@ -51,22 +51,38 @@ If the client is served from another origin, add it under `Cors:Origins` in `Sma
 
 | Project | Role |
 | --- | --- |
-| `SmartX.Api` | ASP.NET Core Web API. Registration, typed ingest, fleet queries, multipart attachments, command stream (FIFO / priority queues, undo stack, timeline, suggestions). In-memory `GatewayStore` singleton. |
-| `SmartX.Client` | Blazor WebAssembly standalone dashboard. Part 1 Progressive Disclosure: overview → filter → device → history. Part 2 Command Stream: overrides, undo, timeline, Suggested Actions. Does not classify anomalies; it displays gateway state. |
-| `SmartX.Shared` | Models, generic `TelemetryPacket<T>`, DTOs, validators, health/freshness classifiers, deployment tree. Referenced by both API and client. |
+| `SmartX.Api` | ASP.NET Core Web API. Registration, typed ingest, fleet queries, multipart attachments, command stream (FIFO / priority queues, undo stack, timeline, suggestions), AVL history range queries, mesh (in progress). In-memory `GatewayStore` singleton. |
+| `SmartX.Client` | Blazor WebAssembly standalone dashboard. Part 1 Progressive Disclosure; Part 2 Command Stream; Part 3 Topology (`/mesh`) with AVL range history. Does not classify anomalies; it displays gateway state. |
+| `SmartX.Shared` | Models, generic `TelemetryPacket<T>`, DTOs, validators, classifiers, deployment tree, **AVL telemetry history trees**. Referenced by both API and client. |
 
 JSON uses camelCase property names and string enums (`"critical"`, not `2`).
 
 Operator paths:
 
 - `/` — three-pillar startup (telemetry, command stream, mesh)
-- `/mesh` — Network Topology dashboard (shell; graph/MST/tree fill in later stages)
+- `/mesh` — Network Topology dashboard (AVL range history live; graph/MST next)
 - `/telemetry` — Level 0 overview
 - `/telemetry/fleet` — Level 1 filters (executed on the API)
 - `/telemetry/devices/{id}` — Level 2 detail, attachments
 - `/telemetry/devices/{id}/history` — Level 3 packets for that device only
 - `/telemetry/register` and `/telemetry/ingest` — registration and typed ingest
 - `/commands` — Part 2 Real-Time Command Stream and History
+
+## Part 3 — AVL historical range queries
+
+Each accepted ingest inserts into a **per-device AVL tree** (`TelemetryHistoryIndex` / `AvlTelemetryHistoryTree`), ordered by timestamp then sequence. A range query walks only the overlapping subtree (**≈ O(log n + k)**) instead of scanning the unsorted packet `List`.
+
+### Demo
+
+1. Open `http://localhost:5270/mesh`.
+2. Select `sx-env-rack1-moist`, metric `Moisture`, click **Use full tree window** (or set From/To).
+3. Confirm **Matches**, **AVL tree size**, and **Nodes visited** — for a narrow window, visited should stay well below tree size.
+
+API:
+
+```bash
+curl "http://localhost:5015/api/sensors/sx-env-rack1-moist/history/range?metric=Moisture"
+```
 
 ## Part 2 — how to test queues, dictionaries, and high-priority alerts
 

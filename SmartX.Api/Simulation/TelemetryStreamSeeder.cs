@@ -38,6 +38,12 @@ public static class TelemetryStreamSeeder
 
         // Live ingest only enqueues; apply the boot stream before fault overlays read ingest state.
         store.DrainPendingQueues();
+
+        if (store.HistoryIndex.TotalSampleCount < devices.Count)
+        {
+            throw new InvalidOperationException(
+                "AVL history index should hold seeded stream samples after the boot drain.");
+        }
     }
 
     /// <summary>
