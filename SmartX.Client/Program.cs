@@ -11,4 +11,8 @@ var apiBaseUrl = builder.Configuration["ApiBaseUrl"]
     ?? throw new InvalidOperationException("ApiBaseUrl is missing from wwwroot/appsettings.json.");
 builder.Services.AddScoped(_ => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
 
+// Survives route changes for the life of the WASM tab (lecturer: state must survive navigation).
+builder.Services.AddSingleton<OperatorSessionState>();
+
 await builder.Build().RunAsync();
+

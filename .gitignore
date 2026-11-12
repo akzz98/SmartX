@@ -39,6 +39,8 @@ Desktop.ini
 Project Assets/
 /CHECKLIST.md
 /docs/
+!/docs/FEEDBACK-UPDATES.md
+
 
 ## Runtime diagnostic uploads (photos, configs, hardware logs)
 **/App_Data/
