@@ -144,8 +144,8 @@ public static class Part2DemoSeeder
     }
 
     /// <summary>
-    /// Raises the same disconnect alert twice for the silent sump sensor. The HashSet
-    /// accepts the first and suppresses the duplicate so the UI is not spammed.
+    /// Proves freshness-based disconnect detection on the silent sump sensor, then
+    /// raises the same disconnect again so the HashSet suppresses spam.
     /// </summary>
     public static void SeedDisconnectDuplicateSuppression(GatewayStore store)
     {
@@ -153,38 +153,35 @@ public static class Part2DemoSeeder
         var device = store.FindSensor(deviceId)
             ?? throw new InvalidOperationException($"Disconnect-dedupe target '{deviceId}' is not registered.");
 
-        var alert = new PriorityAlert
+        if (device.Freshness != FreshnessState.Disconnected)
         {
-            DeviceId = device.Id,
-            MacAddress = device.MacAddress,
-            Severity = AlertSeverity.Warning,
-            Reason = "Device disconnected — no recent telemetry from sump probe",
-            RaisedAt = DateTimeOffset.UtcNow
-        };
+            throw new InvalidOperationException(
+                $"'{deviceId}' must already be Disconnected before detection runs (silent-sensor seed).");
+        }
 
         var processedBefore = store.ProcessedPriorityAlerts.Count;
-        var uniqueBefore = store.ActiveUniqueAlerts.Count;
+        var disconnectKey = UniqueAlertSet.DisconnectKey(device.Id);
 
-        var first = store.RaisePriorityAlert(alert);
-        if (!first)
+        var detected = store.DetectAndRaiseDisconnects();
+        if (detected < 1)
         {
-            throw new InvalidOperationException("First disconnect alert should have been accepted by the HashSet.");
+            throw new InvalidOperationException(
+                "Freshness-based disconnect detection should raise at least one alert for the silent sump probe.");
         }
 
         if (store.ProcessPriorityQueue() < 1)
         {
-            throw new InvalidOperationException("First disconnect alert was not processed by the priority consumer path.");
+            throw new InvalidOperationException("Detected disconnect alert was not processed on the priority path.");
         }
 
-        if (store.ProcessedPriorityAlerts.Count != processedBefore + 1
-            || store.ActiveUniqueAlerts.Count != uniqueBefore + 1)
+        if (!store.ActiveUniqueAlerts.Contains(disconnectKey))
         {
-            throw new InvalidOperationException("First disconnect alert did not update processed list / unique set.");
+            throw new InvalidOperationException("Expected disconnect: HashSet key after freshness detection.");
         }
 
-        if (!store.ActiveUniqueAlerts.Contains(UniqueAlertSet.DisconnectKey(device.Id)))
+        if (store.ProcessedPriorityAlerts.Count <= processedBefore)
         {
-            throw new InvalidOperationException("Expected disconnect: HashSet key after the first alert.");
+            throw new InvalidOperationException("Disconnect detection did not append a processed alert.");
         }
 
         var duplicate = store.RaisePriorityAlert(new PriorityAlert
@@ -192,7 +189,7 @@ public static class Part2DemoSeeder
             DeviceId = device.Id,
             MacAddress = device.MacAddress,
             Severity = AlertSeverity.Warning,
-            Reason = "Device disconnected — no recent telemetry from sump probe",
+            Reason = $"Device disconnected — no recent telemetry (last seen {device.LastSeenAt:u})",
             RaisedAt = DateTimeOffset.UtcNow
         });
 
@@ -201,10 +198,9 @@ public static class Part2DemoSeeder
             throw new InvalidOperationException("Duplicate disconnect alert should have been suppressed by HashSet.");
         }
 
-        if (store.ProcessedPriorityAlerts.Count != processedBefore + 1
-            || store.ActiveUniqueAlerts.Count != uniqueBefore + 1)
+        if (!store.ActiveUniqueAlerts.Contains(disconnectKey))
         {
-            throw new InvalidOperationException("Duplicate disconnect changed processed list or unique set — suppression failed.");
+            throw new InvalidOperationException("Sump disconnect key must remain after duplicate suppression.");
         }
     }
 
@@ -285,15 +281,18 @@ public static class Part2DemoSeeder
         }
 
         var hasPumpHint = suggestions.Suggestions.Any(s =>
-            (s.RelatedDeviceId?.Contains("pump", StringComparison.OrdinalIgnoreCase) ?? false)
-            || (s.SuggestedCommand == CommandKind.StartPump)
-            || s.Title.Contains("moisture", StringComparison.OrdinalIgnoreCase)
-            || s.Title.Contains("pump", StringComparison.OrdinalIgnoreCase));
+            s.SuggestedCommand == CommandKind.StartPump
+            || (s.RelatedDeviceId?.Contains("pump", StringComparison.OrdinalIgnoreCase) ?? false));
 
         if (!hasPumpHint)
         {
             throw new InvalidOperationException(
-                "Expected a moisture/pump related suggestion after recommendation bootstrap.");
+                "Expected a learned StartPump / sump-pump suggestion after recommendation bootstrap.");
+        }
+
+        if (suggestions.Suggestions.Any(s => s.Confidence is < 0 or > 1))
+        {
+            throw new InvalidOperationException("Suggestion confidence must be normalised to [0, 1].");
         }
     }
 

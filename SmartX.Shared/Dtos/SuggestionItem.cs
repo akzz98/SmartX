@@ -18,6 +18,9 @@ public sealed class SuggestionItem
 
     public CommandKind? SuggestedCommand { get; set; }
 
-    /// <summary>Relative score from the sequence frequency map (higher = stronger pattern).</summary>
-    public int Score { get; set; }
+    /// <summary>
+    /// Normalised confidence in [0, 1] from pattern strength / evidence
+    /// (not a raw occurrence count).
+    /// </summary>
+    public double Confidence { get; set; }
 }

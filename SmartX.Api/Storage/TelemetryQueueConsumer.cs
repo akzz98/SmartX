@@ -25,6 +25,8 @@ public sealed class TelemetryQueueConsumer : BackgroundService
 
         // Catch anything left after GatewayStore seeding before the first Notify.
         _store.ProcessQueuedWork();
+        _store.DetectAndRaiseDisconnects();
+        _store.ProcessQueuedWork();
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -37,10 +39,14 @@ public sealed class TelemetryQueueConsumer : BackgroundService
                 break;
             }
 
+            var detected = _store.DetectAndRaiseDisconnects();
             var processed = _store.ProcessQueuedWork();
-            if (processed > 0)
+            if (detected > 0 || processed > 0)
             {
-                _logger.LogDebug("Queue consumer applied {Count} item(s).", processed);
+                _logger.LogDebug(
+                    "Queue consumer: {Detected} new disconnect(s), applied {Processed} queued item(s).",
+                    detected,
+                    processed);
             }
         }
     }

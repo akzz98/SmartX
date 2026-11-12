@@ -119,7 +119,7 @@
                         <li>
                             <div>
                                 <strong>@item.Title</strong>
-                                <span class="commands-score">score @item.Score · @item.Kind</span>
+                                <span class="commands-score">confidence @item.Confidence.ToString("0.00") · @item.Kind</span>
                                 <p>@item.Detail</p>
                             </div>
                             @if (item.SuggestedCommand is { } cmd && !string.IsNullOrWhiteSpace(item.RelatedDeviceId))

@@ -28,9 +28,10 @@ public sealed class GatewayStore
         TelemetryFaultSeeder.SeedStuckActuator(this);
         Part2DemoSeeder.SeedActuatorOverrideDemo(this);
         TelemetryFaultSeeder.SeedSilentSensor(this);
-        Part2DemoSeeder.SeedDisconnectDuplicateSuppression(this);
         TelemetryFaultSeeder.SeedMalformedPackets(this);
         TelemetryFaultSeeder.SeedLocationOutage(this);
+        // After deferred streams exist: detect real Disconnected nodes (not never-seen feeders).
+        Part2DemoSeeder.SeedDisconnectDuplicateSuppression(this);
         TelemetryFaultSeeder.SeedCriticalMoisturePriorityBypass(this);
         Part2DemoSeeder.SeedCriticalPowerPriorityBypass(this);
         TelemetryFaultSeeder.SeedRecovery(this);
@@ -576,10 +577,8 @@ public sealed class GatewayStore
         ProcessedPriorityAlerts.Add(alert);
         Timeline.AppendAlert(alert);
 
-        var faultKey = alert.DeviceId.Contains("moist", StringComparison.OrdinalIgnoreCase)
-            ? "fault:moisture-critical"
-            : "fault:critical";
-        Recommendations.RecordFaultContext(alert.DeviceId, faultKey);
+        // Generic fault activity key — recommendations learn follow-ups from sequences, not device-name rules.
+        Recommendations.RecordFaultContext(alert.DeviceId, $"fault:{alert.Severity}");
     }
 
     private int DrainStandardQueueLocked()
@@ -830,6 +829,58 @@ public sealed class GatewayStore
         {
             sensor.Freshness = TelemetryFreshnessClassifier.Classify(sensor.LastSeenAt, now);
         }
+    }
+
+    /// <summary>
+    /// Freshness-based disconnect detection: any ESP32 classified
+    /// <see cref="FreshnessState.Disconnected"/> raises a priority disconnect alert.
+    /// Devices that recover to a fresher state lose their disconnect HashSet key.
+    /// <see cref="UniqueAlertSet"/> suppresses duplicate keys for the same device.
+    /// </summary>
+    /// <returns>How many new disconnect alerts were accepted (not HashSet-suppressed).</returns>
+    public int DetectAndRaiseDisconnects()
+    {
+        var raised = 0;
+        lock (_gate)
+        {
+            RefreshFreshnessLocked();
+            foreach (var sensor in Fleet)
+            {
+                var disconnectKey = UniqueAlertSet.DisconnectKey(sensor.Id);
+                if (sensor.Freshness != FreshnessState.Disconnected)
+                {
+                    ActiveUniqueAlerts.TryRemove(disconnectKey);
+                    continue;
+                }
+
+                // Never-seen nodes stay Disconnected until their first packet; skip until last-seen exists
+                // so registration-only devices do not spam disconnect alerts before streams are seeded.
+                if (sensor.LastSeenAt is null)
+                {
+                    continue;
+                }
+
+                var lastSeen = sensor.LastSeenAt.Value.ToString("u");
+                if (TryRaisePriorityAlertLocked(new PriorityAlert
+                    {
+                        DeviceId = sensor.Id,
+                        MacAddress = sensor.MacAddress,
+                        Severity = AlertSeverity.Warning,
+                        Reason = $"Device disconnected — no recent telemetry (last seen {lastSeen})",
+                        RaisedAt = DateTimeOffset.UtcNow
+                    }))
+                {
+                    raised++;
+                }
+            }
+        }
+
+        if (raised > 0)
+        {
+            WorkSignal.Notify();
+        }
+
+        return raised;
     }
 
     public TelemetryHistoryResponse HistoryFor(SensorDevice device, int take)
