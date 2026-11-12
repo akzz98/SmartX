@@ -3,7 +3,8 @@ namespace SmartX.Shared;
 /// <summary>
 /// BFS and DFS over an undirected <see cref="MeshGraph"/>.
 /// Used to discover which ESP32s are connected to the gateway subnet
-/// (Final PoE Stage 5.1). Reachable/down reporting lands in Stage 5.2.
+/// (Final PoE Stage 5.1+). Pass <c>onlineOnly: true</c> for live routing walks
+/// that skip down relays (Stage 5.2).
 /// </summary>
 public static class MeshGraphTraverser
 {
@@ -11,20 +12,27 @@ public static class MeshGraphTraverser
     /// Breadth-first walk from <paramref name="rootId"/> (default: central gateway).
     /// Neighbours are expanded in stable id order so demos are deterministic.
     /// </summary>
-    public static MeshTraversalResult BreadthFirst(MeshGraph graph, string? rootId = null)
-        => Traverse(graph, rootId, MeshTraversalMode.BreadthFirst);
+    public static MeshTraversalResult BreadthFirst(
+        MeshGraph graph,
+        string? rootId = null,
+        bool onlineOnly = false)
+        => Traverse(graph, rootId, MeshTraversalMode.BreadthFirst, onlineOnly);
 
     /// <summary>
     /// Depth-first walk from <paramref name="rootId"/> (default: central gateway).
     /// Uses an explicit stack (iterative) so deep meshes do not blow the call stack.
     /// </summary>
-    public static MeshTraversalResult DepthFirst(MeshGraph graph, string? rootId = null)
-        => Traverse(graph, rootId, MeshTraversalMode.DepthFirst);
+    public static MeshTraversalResult DepthFirst(
+        MeshGraph graph,
+        string? rootId = null,
+        bool onlineOnly = false)
+        => Traverse(graph, rootId, MeshTraversalMode.DepthFirst, onlineOnly);
 
     private static MeshTraversalResult Traverse(
         MeshGraph graph,
         string? rootId,
-        MeshTraversalMode mode)
+        MeshTraversalMode mode,
+        bool onlineOnly)
     {
         ArgumentNullException.ThrowIfNull(graph);
 
@@ -43,11 +51,11 @@ public static class MeshGraphTraverser
 
         if (mode == MeshTraversalMode.BreadthFirst)
         {
-            RunBfs(graph, root, visitOrder, parents, visited);
+            RunBfs(graph, root, onlineOnly, visitOrder, parents, visited);
         }
         else
         {
-            RunDfs(graph, root, visitOrder, parents, visited);
+            RunDfs(graph, root, onlineOnly, visitOrder, parents, visited);
         }
 
         return new MeshTraversalResult
@@ -62,6 +70,7 @@ public static class MeshGraphTraverser
     private static void RunBfs(
         MeshGraph graph,
         string root,
+        bool onlineOnly,
         List<string> visitOrder,
         Dictionary<string, string> parents,
         HashSet<string> visited)
@@ -75,7 +84,7 @@ public static class MeshGraphTraverser
             var current = queue.Dequeue();
             visitOrder.Add(current);
 
-            foreach (var neighbour in OrderedNeighbours(graph, current))
+            foreach (var neighbour in OrderedNeighbours(graph, current, onlineOnly))
             {
                 if (!visited.Add(neighbour))
                 {
@@ -91,6 +100,7 @@ public static class MeshGraphTraverser
     private static void RunDfs(
         MeshGraph graph,
         string root,
+        bool onlineOnly,
         List<string> visitOrder,
         Dictionary<string, string> parents,
         HashSet<string> visited)
@@ -116,7 +126,7 @@ public static class MeshGraphTraverser
 
             // Push reverse of ordered neighbours so the lowest id is popped first
             // (matches a natural left-to-right recursive DFS).
-            var neighbours = OrderedNeighbours(graph, current);
+            var neighbours = OrderedNeighbours(graph, current, onlineOnly);
             for (var i = neighbours.Count - 1; i >= 0; i--)
             {
                 var neighbour = neighbours[i];
@@ -130,13 +140,24 @@ public static class MeshGraphTraverser
 
     /// <summary>
     /// Unique neighbour ids for a vertex, sorted for stable demos.
+    /// When <paramref name="onlineOnly"/> is true, offline neighbours are skipped
+    /// so routing cannot traverse a down relay.
     /// </summary>
-    private static List<string> OrderedNeighbours(MeshGraph graph, string nodeId)
+    private static List<string> OrderedNeighbours(MeshGraph graph, string nodeId, bool onlineOnly)
     {
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var edge in graph.Neighbours(nodeId))
         {
-            ids.Add(edge.OtherEnd(nodeId));
+            var other = edge.OtherEnd(nodeId);
+            if (onlineOnly &&
+                graph.TryGetNode(other, out var node) &&
+                node is not null &&
+                !node.IsOnline)
+            {
+                continue;
+            }
+
+            ids.Add(other);
         }
 
         var list = ids.ToList();

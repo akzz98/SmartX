@@ -1,9 +1,9 @@
 namespace SmartX.Shared;
 
 /// <summary>
-/// Outcome of a BFS or DFS walk over the IoT mesh (Final PoE Stage 5.1).
+/// Outcome of a BFS or DFS walk over the IoT mesh (Final PoE Stage 5.1+).
 /// Visit order proves which vertices were discovered from the root; parent links
-/// support path reconstruction in later stages (down-node hops / healing).
+/// support path reconstruction and down-node hop suggestions (Stage 5.2).
 /// </summary>
 public sealed class MeshTraversalResult
 {
