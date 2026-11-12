@@ -41,6 +41,8 @@ public sealed class GatewayStore
         Part2DemoSeeder.SeedConsumerBacklog(this);
         MeshTopologySeeder.Seed(this);
         MeshTopologySeeder.RefreshOnlineStatus(this);
+        // After the graph exists: force a mid-mesh relay down so healing hops are demoable.
+        MeshDownScenarioSeeder.Seed(this);
     }
 
     public List<DeploymentNode> DeploymentRoots { get; }

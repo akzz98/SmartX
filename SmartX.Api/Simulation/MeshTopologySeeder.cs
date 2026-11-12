@@ -93,8 +93,12 @@ public static class MeshTopologySeeder
 
     public static void RefreshOnlineStatus(GatewayStore store)
     {
+        var now = DateTimeOffset.UtcNow;
         foreach (var sensor in store.SnapshotSensors())
         {
+            // Reclassify from LastSeenAt so forced mesh-down ages stay sticky on API reads.
+            sensor.Freshness = TelemetryFreshnessClassifier.Classify(sensor.LastSeenAt, now);
+
             if (!store.Mesh.TryGetNode(sensor.Id, out var node) || node is null)
             {
                 continue;
