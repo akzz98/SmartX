@@ -1,5 +1,6 @@
 @page "/telemetry/devices/{DeviceId}"
 @inject HttpClient Http
+@inject OperatorSessionState Session
 
 @* Progressive Disclosure level 2: what happened on this ESP32? Display gateway state; do not re-detect it. *@
 
@@ -204,6 +205,7 @@
         detail = null;
         latest = null;
         related = [];
+        Session.LastDeviceId = DeviceId;
 
         try
         {

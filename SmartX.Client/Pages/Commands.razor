@@ -1,5 +1,6 @@
 @page "/commands"
 @inject HttpClient Http
+@inject OperatorSessionState Session
 
 @* Part 2 stream visualisation: queue depths, unique HashSet alerts, recent priority work. *@
 
@@ -18,7 +19,7 @@
     <form class="sx-form commands-filter" @onsubmit="ApplyFiltersAsync" @onsubmit:preventDefault>
         <label>
             Category
-            <select @bind="categoryText">
+            <select @bind="Session.CommandCategoryFilter">
                 <option value="">Any category</option>
                 @foreach (var name in Enum.GetNames<SensorCategory>())
                 {
@@ -28,7 +29,7 @@
         </label>
         <label>
             Health
-            <select @bind="healthText">
+            <select @bind="Session.CommandHealthFilter">
                 <option value="">Any health</option>
                 @foreach (var name in Enum.GetNames<HealthState>())
                 {
@@ -38,7 +39,7 @@
         </label>
         <label>
             Alert state
-            <select @bind="alertScope">
+            <select @bind="Session.CommandAlertScope">
                 <option value="any">Any</option>
                 <option value="unique">Unique HashSet key active</option>
                 <option value="attention">Non-normal health</option>
@@ -53,7 +54,7 @@
     <form class="sx-form commands-override" @onsubmit="IssueOverrideAsync" @onsubmit:preventDefault>
         <label>
             Actuator
-            <select @bind="overrideDeviceId">
+            <select @bind="Session.OverrideDeviceId">
                 <option value="">Select valve / pump / relay</option>
                 @foreach (var actuator in actuators)
                 {
@@ -63,7 +64,7 @@
         </label>
         <label>
             Override
-            <select @bind="overrideKindText">
+            <select @bind="Session.OverrideKindText">
                 @foreach (var name in Enum.GetNames<CommandKind>())
                 {
                     <option value="@name">@name</option>
@@ -72,7 +73,7 @@
         </label>
         <label>
             Operator note
-            <input @bind="overrideNote" placeholder="optional" />
+            <input @bind="Session.OverrideNote" placeholder="optional" />
         </label>
         <div class="sx-form-actions">
             <button type="submit" disabled="@issueBusy">Issue override</button>
@@ -351,13 +352,6 @@
     private List<SensorResponse> actuators = [];
     private string? loadError;
 
-    private string categoryText = string.Empty;
-    private string healthText = string.Empty;
-    private string alertScope = "any";
-
-    private string overrideDeviceId = "sx-act-rack2-valve";
-    private string overrideKindText = nameof(CommandKind.CloseValve);
-    private string overrideNote = string.Empty;
     private bool issueBusy;
     private bool undoBusy;
     private string? issueMessage;
@@ -367,9 +361,9 @@
 
     private async Task ClearFiltersAsync()
     {
-        categoryText = string.Empty;
-        healthText = string.Empty;
-        alertScope = "any";
+        Session.CommandCategoryFilter = string.Empty;
+        Session.CommandHealthFilter = string.Empty;
+        Session.CommandAlertScope = "any";
         await ApplyFiltersAsync();
     }
 
@@ -388,8 +382,8 @@
 
     private void ApplySuggestion(string deviceId, CommandKind kind)
     {
-        overrideDeviceId = deviceId;
-        overrideKindText = kind.ToString();
+        Session.OverrideDeviceId = deviceId;
+        Session.OverrideKindText = kind.ToString();
         issueMessage = $"Suggestion applied: {kind} on {deviceId}. Click Issue override to send it.";
         issueError = null;
     }
@@ -403,9 +397,9 @@
 
             var request = new RecordSearchRequest
             {
-                CategoryFilter = string.IsNullOrWhiteSpace(categoryText) ? null : categoryText,
-                HealthFilter = string.IsNullOrWhiteSpace(healthText) ? null : healthText,
-                AlertScope = alertScope,
+                CategoryFilter = string.IsNullOrWhiteSpace(Session.CommandCategoryFilter) ? null : Session.CommandCategoryFilter,
+                HealthFilter = string.IsNullOrWhiteSpace(Session.CommandHealthFilter) ? null : Session.CommandHealthFilter,
+                AlertScope = Session.CommandAlertScope,
                 RelatedDeviceId = related
             };
 
@@ -434,13 +428,13 @@
         issueMessage = null;
         issueError = null;
 
-        if (string.IsNullOrWhiteSpace(overrideDeviceId))
+        if (string.IsNullOrWhiteSpace(Session.OverrideDeviceId))
         {
             issueError = "Select an actuator before issuing an override.";
             return;
         }
 
-        if (!Enum.TryParse<CommandKind>(overrideKindText, ignoreCase: true, out var kind))
+        if (!Enum.TryParse<CommandKind>(Session.OverrideKindText, ignoreCase: true, out var kind))
         {
             issueError = "Command kind is not recognised.";
             return;
@@ -451,9 +445,9 @@
         {
             var request = new IssueCommandRequest
             {
-                DeviceId = overrideDeviceId.Trim(),
+                DeviceId = Session.OverrideDeviceId.Trim(),
                 Kind = kind,
-                OperatorNote = string.IsNullOrWhiteSpace(overrideNote) ? null : overrideNote.Trim()
+                OperatorNote = string.IsNullOrWhiteSpace(Session.OverrideNote) ? null : Session.OverrideNote.Trim()
             };
 
             using var response = await Http.PostAsJsonAsync("api/commands", request, GatewayJson.Options);
@@ -540,9 +534,9 @@
             timeline = await Http.GetFromJsonAsync<TimelineHistoryResponse>("api/stream/timeline", GatewayJson.Options);
             var fleet = await Http.GetFromJsonAsync<SensorListResponse>("api/sensors?category=Actuator", GatewayJson.Options);
             actuators = fleet?.Sensors ?? [];
-            if (actuators.Count > 0 && actuators.All(sensor => sensor.Id != overrideDeviceId))
+            if (actuators.Count > 0 && actuators.All(sensor => sensor.Id != Session.OverrideDeviceId))
             {
-                overrideDeviceId = actuators[0].Id;
+                Session.OverrideDeviceId = actuators[0].Id;
             }
 
             await LoadFilteredDevicesAsync();
@@ -573,7 +567,7 @@
         var list = await Http.GetFromJsonAsync<SensorListResponse>(BuildSensorUrl(), GatewayJson.Options);
         var sensors = list?.Sensors ?? [];
 
-        filteredDevices = alertScope switch
+        filteredDevices = Session.CommandAlertScope switch
         {
             "unique" => sensors.Where(sensor => HasUniqueAlert(sensor.Id)).ToList(),
             "attention" => sensors.Where(sensor => sensor.Health is not HealthState.Normal).ToList(),
@@ -598,14 +592,14 @@
     private string BuildSensorUrl()
     {
         var query = new List<string>();
-        if (!string.IsNullOrWhiteSpace(categoryText))
+        if (!string.IsNullOrWhiteSpace(Session.CommandCategoryFilter))
         {
-            query.Add("category=" + Uri.EscapeDataString(categoryText.Trim()));
+            query.Add("category=" + Uri.EscapeDataString(Session.CommandCategoryFilter.Trim()));
         }
 
-        if (!string.IsNullOrWhiteSpace(healthText))
+        if (!string.IsNullOrWhiteSpace(Session.CommandHealthFilter))
         {
-            query.Add("health=" + Uri.EscapeDataString(healthText.Trim()));
+            query.Add("health=" + Uri.EscapeDataString(Session.CommandHealthFilter.Trim()));
         }
 
         return query.Count == 0 ? "api/sensors" : "api/sensors?" + string.Join("&", query);
