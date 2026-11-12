@@ -39,6 +39,8 @@ public sealed class GatewayStore
         Part2DemoSeeder.SeedPriorityTieBreaker(this);
         // Leave a short FIFO backlog for TelemetryQueueConsumer after the host starts.
         Part2DemoSeeder.SeedConsumerBacklog(this);
+        MeshTopologySeeder.Seed(this);
+        MeshTopologySeeder.RefreshOnlineStatus(this);
     }
 
     public List<DeploymentNode> DeploymentRoots { get; }
@@ -69,6 +71,12 @@ public sealed class GatewayStore
     /// Populated on every accepted ingest; range queries do not scan unsorted lists.
     /// </summary>
     public TelemetryHistoryIndex HistoryIndex { get; } = new();
+
+    /// <summary>
+    /// Undirected IoT mesh (gateway + ESP32 vertices, weighted wireless edges).
+    /// Seeded by <see cref="MeshTopologySeeder"/>; traversal/MST come in later stages.
+    /// </summary>
+    public MeshGraph Mesh { get; } = new();
 
     /// <summary>Search/command sequence frequency map for Suggested Actions.</summary>
     public RecommendationEngine Recommendations { get; } = new();
