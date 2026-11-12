@@ -55,7 +55,7 @@
                 <span class="mesh-legend-item"><span class="mesh-swatch mesh-swatch-path"></span> Selected route</span>
             </div>
 
-            <form class="sx-form mesh-route-form" @onsubmit="TrackRouteAsync" @onsubmit:preventDefault>
+            <form class="sx-form mesh-route-form" @onsubmit="() => TrackRouteAsync(loadHistory: true)" @onsubmit:preventDefault>
                 <label>
                     Track sensor (id)
                     <select @bind="routeDeviceId" @bind:after="OnRouteDeviceChangedAsync">
@@ -164,17 +164,19 @@
         </article>
     }
 
-    <header class="mesh-subheader">
-        <h2>AVL history range</h2>
+    <header class="mesh-subheader" id="mesh-history">
+        <h2>Historical log — selected sensor</h2>
         <p class="mesh-lead">
-            Timestamped samples via the per-device AVL index (range walk ≈ log n + k).
+            Tree-backed AVL range query for the sensor tracked above
+            @(string.IsNullOrWhiteSpace(selectedDeviceId) ? "" : $" ({selectedDeviceId}{SelectedMacSuffix})").
+            Walks ≈ log n + k nodes instead of scanning the full unsorted list.
         </p>
     </header>
 
     <form class="sx-form mesh-range" @onsubmit="RunRangeQueryAsync" @onsubmit:preventDefault>
         <label>
-            Sensor
-            <select @bind="selectedDeviceId">
+            Sensor (same as route track)
+            <select @bind="selectedDeviceId" @bind:after="OnHistoryDeviceChangedAsync">
                 <option value="">Select device</option>
                 @foreach (var sensor in sensors)
                 {
@@ -200,10 +202,19 @@
         </div>
     </form>
 
+    @if (string.IsNullOrWhiteSpace(selectedDeviceId))
+    {
+        <p class="mesh-hint">Select or track a sensor to load its historical log.</p>
+    }
+    else if (rangeResult is null && historyHint is not null)
+    {
+        <p class="mesh-hint">@historyHint</p>
+    }
+
     @if (rangeResult is not null)
     {
         <article class="mesh-panel">
-            <h2>Range result — @rangeResult.DeviceId</h2>
+            <h2>Historical log — @rangeResult.DeviceId</h2>
             <dl class="mesh-meta">
                 <div>
                     <dt>Matches</dt>
@@ -295,8 +306,23 @@
     private DateTime? fromLocal;
     private DateTime? toLocal;
     private TelemetryRangeHistoryResponse? rangeResult;
+    private string? historyHint;
     private string? loadError;
     private bool busy;
+
+    private string SelectedMacSuffix
+    {
+        get
+        {
+            var mac = topology?.Nodes.FirstOrDefault(n =>
+                          string.Equals(n.Id, selectedDeviceId, StringComparison.OrdinalIgnoreCase))
+                      ?.MacAddress
+                  ?? sensors.FirstOrDefault(s =>
+                          string.Equals(s.Id, selectedDeviceId, StringComparison.OrdinalIgnoreCase))
+                      ?.MacAddress;
+            return string.IsNullOrEmpty(mac) ? string.Empty : $" · {mac}";
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -309,12 +335,12 @@
             {
                 selectedDeviceId = sensors[0].Id;
                 routeDeviceId = selectedDeviceId;
-                metricFilter = string.Empty;
+                SuggestMetricForDevice(selectedDeviceId);
             }
 
             if (!string.IsNullOrWhiteSpace(routeDeviceId))
             {
-                await TrackRouteAsync();
+                await TrackRouteAsync(loadHistory: true);
             }
         }
         catch (HttpRequestException)
@@ -381,8 +407,24 @@
         if (!string.IsNullOrWhiteSpace(routeDeviceId))
         {
             selectedDeviceId = routeDeviceId;
-            await TrackRouteAsync();
+            SuggestMetricForDevice(selectedDeviceId);
+            await TrackRouteAsync(loadHistory: true);
         }
+    }
+
+    private async Task OnHistoryDeviceChangedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(selectedDeviceId))
+        {
+            rangeResult = null;
+            historyHint = "Select or track a sensor to load its historical log.";
+            return;
+        }
+
+        routeDeviceId = selectedDeviceId;
+        macQuery = string.Empty;
+        SuggestMetricForDevice(selectedDeviceId);
+        await TrackRouteAsync(loadHistory: true);
     }
 
     private async Task SelectRouteNodeAsync(string nodeId)
@@ -396,10 +438,11 @@
         routeDeviceId = nodeId;
         selectedDeviceId = nodeId;
         macQuery = string.Empty;
-        await TrackRouteAsync();
+        SuggestMetricForDevice(nodeId);
+        await TrackRouteAsync(loadHistory: true);
     }
 
-    private Task TrackRouteAsync()
+    private async Task TrackRouteAsync(bool loadHistory = false)
     {
         routeMessage = null;
 
@@ -413,22 +456,50 @@
             {
                 ClearRoute();
                 routeMessage = $"No mesh node matches MAC '{macQuery.Trim()}'.";
-                return Task.CompletedTask;
+                return;
             }
 
             routeDeviceId = match.Id;
             selectedDeviceId = match.Id;
+            SuggestMetricForDevice(match.Id);
         }
 
         if (string.IsNullOrWhiteSpace(routeDeviceId))
         {
             ClearRoute();
             routeMessage = "Select a sensor id or enter a MAC to track.";
-            return Task.CompletedTask;
+            return;
         }
 
         RebuildRoute(routeDeviceId);
-        return Task.CompletedTask;
+        selectedDeviceId = routeDeviceId;
+
+        if (loadHistory)
+        {
+            fromLocal = null;
+            toLocal = null;
+            await RunRangeQueryAsync();
+        }
+    }
+
+    private void SuggestMetricForDevice(string deviceId)
+    {
+        if (deviceId.Contains("moist", StringComparison.OrdinalIgnoreCase))
+        {
+            metricFilter = "Moisture";
+        }
+        else if (deviceId.Contains("temp", StringComparison.OrdinalIgnoreCase))
+        {
+            metricFilter = "Temperature";
+        }
+        else if (deviceId.Contains("ph", StringComparison.OrdinalIgnoreCase))
+        {
+            metricFilter = "Ph";
+        }
+        else
+        {
+            metricFilter = string.Empty;
+        }
     }
 
     private void RebuildRoute(string deviceId)
@@ -541,12 +612,12 @@
 
     private async Task RunRangeQueryAsync()
     {
-        loadError = null;
+        historyHint = null;
         rangeResult = null;
 
         if (string.IsNullOrWhiteSpace(selectedDeviceId))
         {
-            loadError = "Select a sensor before running a range query.";
+            historyHint = "Select or track a sensor to load its historical log.";
             return;
         }
 
@@ -578,7 +649,11 @@
             rangeResult = await Http.GetFromJsonAsync<TelemetryRangeHistoryResponse>(path, GatewayJson.Options);
             if (rangeResult is null)
             {
-                loadError = "Gateway returned an empty range payload.";
+                historyHint = "Gateway returned an empty range payload.";
+            }
+            else if (rangeResult.Points.Count == 0)
+            {
+                historyHint = $"No AVL samples for {selectedDeviceId} in this window.";
             }
         }
         catch (HttpRequestException)
@@ -587,7 +662,7 @@
         }
         catch (Exception)
         {
-            loadError = "The AVL range query failed.";
+            historyHint = "The AVL range query failed for the selected sensor.";
         }
         finally
         {
