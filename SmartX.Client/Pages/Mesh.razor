@@ -1,7 +1,7 @@
 @page "/mesh"
 @inject HttpClient Http
 
-@* Pillar 3: AVL range history now; graph / BFS-DFS / MST land in Stages 4–7. *@
+@* Pillar 3: live mesh viz (7.1); AVL history retained; path / traversal / MST UI in 7.2–7.4. *@
 
 <PageTitle>Mesh topology — Smart-X</PageTitle>
 
@@ -10,8 +10,115 @@
         <p class="mesh-kicker">Final PoE · Network Topology and Mesh Routing</p>
         <h1>Topology dashboard</h1>
         <p class="mesh-lead">
-            Query timestamped telemetry through the per-device AVL history index
-            (range walk ≈ log n + k, not a full unsorted scan). Graph hops and MST follow next.
+            Live wireless mesh: gateway + ESP32 vertices, links by power cost.
+            Online nodes are green; down relays are marked so routing can skip them.
+        </p>
+    </header>
+
+    <div class="sx-form-actions mesh-toolbar">
+        <button type="button" disabled="@busy" @onclick="ReloadTopologyAsync">Refresh mesh</button>
+    </div>
+
+    @if (loadError is not null)
+    {
+        <p class="mesh-error" role="alert">@loadError</p>
+    }
+
+    @if (topology is not null)
+    {
+        <article class="mesh-panel">
+            <h2>Active mesh</h2>
+            <dl class="mesh-meta">
+                <div>
+                    <dt>Nodes</dt>
+                    <dd>@topology.NodeCount</dd>
+                </div>
+                <div>
+                    <dt>Links</dt>
+                    <dd>@topology.EdgeCount</dd>
+                </div>
+                <div>
+                    <dt>Online</dt>
+                    <dd class="mesh-ok">@topology.OnlineNodeCount</dd>
+                </div>
+                <div>
+                    <dt>Down</dt>
+                    <dd class="@(topology.OfflineNodeCount > 0 ? "mesh-bad" : null)">@topology.OfflineNodeCount</dd>
+                </div>
+            </dl>
+
+            <div class="mesh-legend" aria-hidden="true">
+                <span class="mesh-legend-item"><span class="mesh-swatch mesh-swatch-gateway"></span> Gateway</span>
+                <span class="mesh-legend-item"><span class="mesh-swatch mesh-swatch-online"></span> Online ESP32</span>
+                <span class="mesh-legend-item"><span class="mesh-swatch mesh-swatch-down"></span> Down</span>
+                <span class="mesh-legend-item"><span class="mesh-swatch mesh-swatch-link"></span> Wireless link</span>
+            </div>
+
+            <div class="mesh-canvas-wrap">
+                <svg class="mesh-canvas" viewBox="0 0 @SvgWidth @SvgHeight" role="img" aria-label="Smart-X mesh topology">
+                    @foreach (var edge in topology.Edges)
+                    {
+                        if (!TryGetPoint(edge.FromId, out var from) || !TryGetPoint(edge.ToId, out var to))
+                        {
+                            continue;
+                        }
+
+                        var downLink = IsDown(edge.FromId) || IsDown(edge.ToId);
+                        <line class="@(downLink ? "mesh-link mesh-link-dim" : "mesh-link")"
+                              x1="@from.X" y1="@from.Y" x2="@to.X" y2="@to.Y" />
+                    }
+
+                    @foreach (var node in topology.Nodes)
+                    {
+                        if (!TryGetPoint(node.Id, out var point))
+                        {
+                            continue;
+                        }
+
+                        var css = NodeCss(node);
+                        <g class="mesh-vertex" transform="translate(@point.X @point.Y)">
+                            <circle class="@css" r="@(node.Kind == MeshNodeKind.Gateway ? 16 : 11)" />
+                            <title>@NodeTitle(node)</title>
+                            <text class="mesh-vertex-label" y="28">@ShortLabel(node.Id)</text>
+                        </g>
+                    }
+                </svg>
+            </div>
+
+            <div class="table-wrap">
+                <table class="mesh-table">
+                    <thead>
+                        <tr>
+                            <th>Node</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Freshness</th>
+                            <th>Neighbours</th>
+                            <th>Location</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var node in topology.Nodes)
+                        {
+                            <tr class="@(node.IsOnline ? null : "mesh-row-down")">
+                                <td>@node.Id</td>
+                                <td>@(node.Kind == MeshNodeKind.Gateway ? "Gateway" : node.Category?.ToString() ?? "Sensor")</td>
+                                <td>@(node.IsOnline ? "Online" : "Down")</td>
+                                <td>@node.Freshness</td>
+                                <td>@node.NeighbourCount</td>
+                                <td>@node.LocationNodeId</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    }
+
+    <header class="mesh-subheader">
+        <h2>AVL history range</h2>
+        <p class="mesh-lead">
+            Timestamped samples via the per-device AVL index (range walk ≈ log n + k).
         </p>
     </header>
 
@@ -43,11 +150,6 @@
             <button type="button" disabled="@busy" @onclick="UseFullTreeWindowAsync">Use full tree window</button>
         </div>
     </form>
-
-    @if (loadError is not null)
-    {
-        <p class="mesh-error" role="alert">@loadError</p>
-    }
 
     @if (rangeResult is not null)
     {
@@ -116,25 +218,22 @@
         </article>
     }
 
-    <article class="mesh-panel mesh-panel-muted">
-        <h2>Still coming in Stages 4–7</h2>
-        <ul>
-            <li>Graph model of sensors and wireless links</li>
-            <li>BFS/DFS traversal and down-node hop alternatives</li>
-            <li>Prim’s or Kruskal’s MST for efficient routing</li>
-        </ul>
-        <p class="mesh-ops">
-            <a href="">Startup menu</a>
-            ·
-            <a href="telemetry">Telemetry</a>
-            ·
-            <a href="commands">Command stream</a>
-        </p>
-    </article>
+    <p class="mesh-ops">
+        <a href="">Startup menu</a>
+        ·
+        <a href="telemetry">Telemetry</a>
+        ·
+        <a href="commands">Command stream</a>
+    </p>
 </section>
 
 @code {
+    private const double SvgWidth = 900;
+    private const double SvgHeight = 520;
+
     private List<SensorResponse> sensors = [];
+    private MeshTopologySnapshotResponse? topology;
+    private Dictionary<string, Point> layout = new(StringComparer.OrdinalIgnoreCase);
     private string selectedDeviceId = "sx-env-rack1-moist";
     private string metricFilter = "Moisture";
     private DateTime? fromLocal;
@@ -145,6 +244,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await ReloadTopologyAsync();
         try
         {
             var list = await Http.GetFromJsonAsync<SensorListResponse>("api/sensors", GatewayJson.Options);
@@ -157,7 +257,43 @@
         }
         catch (HttpRequestException)
         {
+            loadError ??= "Gateway unreachable. Start SmartX.Api and reload.";
+        }
+    }
+
+    private async Task ReloadTopologyAsync()
+    {
+        busy = true;
+        loadError = null;
+        try
+        {
+            topology = await Http.GetFromJsonAsync<MeshTopologySnapshotResponse>(
+                "api/mesh/topology",
+                GatewayJson.Options);
+            if (topology is null)
+            {
+                loadError = "Gateway returned an empty mesh topology.";
+                layout = new Dictionary<string, Point>(StringComparer.OrdinalIgnoreCase);
+                return;
+            }
+
+            layout = BuildLayout(topology);
+        }
+        catch (HttpRequestException)
+        {
+            topology = null;
+            layout = new Dictionary<string, Point>(StringComparer.OrdinalIgnoreCase);
             loadError = "Gateway unreachable. Start SmartX.Api and reload.";
+        }
+        catch (Exception)
+        {
+            topology = null;
+            layout = new Dictionary<string, Point>(StringComparer.OrdinalIgnoreCase);
+            loadError = "Could not load the mesh topology.";
+        }
+        finally
+        {
+            busy = false;
         }
     }
 
@@ -230,9 +366,75 @@
         }
     }
 
+    private bool TryGetPoint(string id, out Point point)
+        => layout.TryGetValue(id, out point!);
+
+    private bool IsDown(string id)
+        => topology?.Nodes.FirstOrDefault(n =>
+               string.Equals(n.Id, id, StringComparison.OrdinalIgnoreCase)) is { IsOnline: false };
+
+    private static string NodeCss(MeshNodeResponse node)
+    {
+        if (node.Kind == MeshNodeKind.Gateway)
+        {
+            return "mesh-node mesh-node-gateway";
+        }
+
+        return node.IsOnline ? "mesh-node mesh-node-online" : "mesh-node mesh-node-down";
+    }
+
+    private static string NodeTitle(MeshNodeResponse node)
+    {
+        var role = node.Kind == MeshNodeKind.Gateway ? "Gateway" : node.Category?.ToString() ?? "Sensor";
+        var status = node.IsOnline ? "online" : "down";
+        return $"{node.Id} · {role} · {status} · {node.NeighbourCount} neighbours";
+    }
+
+    private static string ShortLabel(string id)
+    {
+        if (string.Equals(id, MeshGraph.GatewayNodeId, StringComparison.OrdinalIgnoreCase))
+        {
+            return "gateway";
+        }
+
+        var parts = id.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length <= 2 ? id : string.Join('-', parts.TakeLast(2));
+    }
+
+    private static Dictionary<string, Point> BuildLayout(MeshTopologySnapshotResponse snapshot)
+    {
+        var map = new Dictionary<string, Point>(StringComparer.OrdinalIgnoreCase);
+        var cx = SvgWidth / 2;
+        var cy = SvgHeight / 2;
+        map[snapshot.GatewayNodeId] = new Point(cx, cy);
+
+        var others = snapshot.Nodes
+            .Where(n => n.Kind != MeshNodeKind.Gateway)
+            .OrderBy(n => n.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (others.Count == 0)
+        {
+            return map;
+        }
+
+        var radius = Math.Min(SvgWidth, SvgHeight) * 0.38;
+        for (var i = 0; i < others.Count; i++)
+        {
+            var angle = (2 * Math.PI * i / others.Count) - (Math.PI / 2);
+            map[others[i].Id] = new Point(
+                cx + radius * Math.Cos(angle),
+                cy + radius * Math.Sin(angle));
+        }
+
+        return map;
+    }
+
     private static string ToUtcIso(DateTime local)
     {
         var unspecified = DateTime.SpecifyKind(local, DateTimeKind.Local);
         return unspecified.ToUniversalTime().ToString("o");
     }
+
+    private sealed record Point(double X, double Y);
 }
