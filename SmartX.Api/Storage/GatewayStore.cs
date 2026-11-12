@@ -190,7 +190,7 @@ public sealed class GatewayStore
         {
             MeshTopologySeeder.RefreshOnlineStatus(this);
             var mst = MeshMstBuilder.Build(Mesh, rootId, onlineOnly);
-            return MeshDtoMapper.ToMstResponse(mst, onlineOnly);
+            return MeshDtoMapper.ToMstResponse(Mesh, mst, onlineOnly);
         }
     }
 

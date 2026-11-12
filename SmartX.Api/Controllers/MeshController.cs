@@ -52,7 +52,7 @@ public sealed class MeshController : ControllerBase
 
     /// <summary>
     /// GET /api/mesh/mst?root=sx-gateway&amp;onlineOnly=false —
-    /// Prim’s MST edges, total power cost, and per-node parent hop toward the gateway.
+    /// Prim’s MST edges, total power cost, parent hops, and full-mesh vs MST comparison.
     /// </summary>
     [HttpGet("mst")]
     public Task<ActionResult<MeshMstResponse>> GetMst(

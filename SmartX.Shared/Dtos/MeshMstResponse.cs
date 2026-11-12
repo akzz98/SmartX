@@ -22,4 +22,7 @@ public sealed class MeshMstResponse
 
     /// <summary>Per-node next hop toward the gateway (sorted by node id).</summary>
     public List<MeshParentHopResponse> ParentHops { get; set; } = [];
+
+    /// <summary>Full mesh vs MST backbone comparison (edge/cost savings + redundant links).</summary>
+    public MeshVsMstComparison Comparison { get; set; } = new();
 }

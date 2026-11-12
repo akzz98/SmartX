@@ -86,8 +86,9 @@ public static class MeshDtoMapper
             AlternatePathToNextHop = suggestion.AlternatePathToNextHop.ToList()
         };
 
-    public static MeshMstResponse ToMstResponse(MeshMstResult mst, bool onlineOnly)
+    public static MeshMstResponse ToMstResponse(MeshGraph graph, MeshMstResult mst, bool onlineOnly)
     {
+        ArgumentNullException.ThrowIfNull(graph);
         ArgumentNullException.ThrowIfNull(mst);
 
         var parentHops = mst.Parents
@@ -109,7 +110,70 @@ public static class MeshDtoMapper
             NodeCount = mst.NodeCount,
             TotalCost = mst.TotalCost,
             Edges = mst.Edges.Select(ToEdgeResponse).ToList(),
-            ParentHops = parentHops
+            ParentHops = parentHops,
+            Comparison = BuildMeshVsMstComparison(graph, mst, onlineOnly)
         };
+    }
+
+    public static MeshVsMstComparison BuildMeshVsMstComparison(
+        MeshGraph graph,
+        MeshMstResult mst,
+        bool onlineOnly)
+    {
+        ArgumentNullException.ThrowIfNull(graph);
+        ArgumentNullException.ThrowIfNull(mst);
+
+        var meshEdges = onlineOnly
+            ? graph.Edges.Where(e => BothEndsOnline(graph, e)).ToList()
+            : graph.Edges.ToList();
+
+        var mstKeys = new HashSet<string>(
+            mst.Edges.Select(EdgeKey),
+            StringComparer.OrdinalIgnoreCase);
+
+        var redundant = meshEdges
+            .Where(e => !mstKeys.Contains(EdgeKey(e)))
+            .OrderBy(e => e.FromId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(e => e.ToId, StringComparer.OrdinalIgnoreCase)
+            .Select(ToEdgeResponse)
+            .ToList();
+
+        var fullCost = meshEdges.Sum(e => e.Weight);
+        var costSaved = fullCost - mst.TotalCost;
+        var savingPct = fullCost <= 0
+            ? 0
+            : Math.Round(100.0 * costSaved / fullCost, 1);
+
+        return new MeshVsMstComparison
+        {
+            FullMeshEdgeCount = meshEdges.Count,
+            FullMeshTotalCost = fullCost,
+            MstEdgeCount = mst.EdgeCount,
+            MstTotalCost = mst.TotalCost,
+            EdgesSaved = redundant.Count,
+            CostSaved = Math.Round(costSaved, 4),
+            CostSavingPercent = savingPct,
+            RedundantEdges = redundant,
+            Summary =
+                $"Full mesh {meshEdges.Count} links (cost {fullCost:0.##}) → " +
+                $"Prim MST {mst.EdgeCount} links (cost {mst.TotalCost:0.##}); " +
+                $"drop {redundant.Count} redundant hops, save {savingPct:0.#}% radio cost."
+        };
+    }
+
+    private static bool BothEndsOnline(MeshGraph graph, MeshEdge edge)
+        => graph.TryGetNode(edge.FromId, out var from) && from is { IsOnline: true } &&
+           graph.TryGetNode(edge.ToId, out var to) && to is { IsOnline: true };
+
+    private static string EdgeKey(MeshEdge edge)
+    {
+        var a = edge.FromId;
+        var b = edge.ToId;
+        if (string.Compare(a, b, StringComparison.OrdinalIgnoreCase) > 0)
+        {
+            (a, b) = (b, a);
+        }
+
+        return $"{a}|{b}|{edge.Weight:0.####}";
     }
 }
