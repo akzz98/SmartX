@@ -181,6 +181,19 @@ public sealed class GatewayStore
         }
     }
 
+    /// <summary>
+    /// Prim’s MST: power-efficient edges, total cost, and parent hops toward the gateway.
+    /// </summary>
+    public MeshMstResponse GetMeshMst(string? rootId = null, bool onlineOnly = false)
+    {
+        lock (_gate)
+        {
+            MeshTopologySeeder.RefreshOnlineStatus(this);
+            var mst = MeshMstBuilder.Build(Mesh, rootId, onlineOnly);
+            return MeshDtoMapper.ToMstResponse(mst, onlineOnly);
+        }
+    }
+
     public UniqueAlertsResponse GetUniqueActiveAlerts()
     {
         lock (_gate)

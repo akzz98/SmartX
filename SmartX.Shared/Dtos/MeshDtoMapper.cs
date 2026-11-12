@@ -85,4 +85,31 @@ public static class MeshDtoMapper
             SuggestedNextHop = suggestion.SuggestedNextHop,
             AlternatePathToNextHop = suggestion.AlternatePathToNextHop.ToList()
         };
+
+    public static MeshMstResponse ToMstResponse(MeshMstResult mst, bool onlineOnly)
+    {
+        ArgumentNullException.ThrowIfNull(mst);
+
+        var parentHops = mst.Parents
+            .OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(p => new MeshParentHopResponse
+            {
+                NodeId = p.Key,
+                ParentId = p.Value,
+                HopCost = mst.ParentHopCosts.TryGetValue(p.Key, out var cost) ? cost : 0
+            })
+            .ToList();
+
+        return new MeshMstResponse
+        {
+            Algorithm = mst.Algorithm,
+            RootId = mst.RootId,
+            OnlineOnly = onlineOnly,
+            EdgeCount = mst.EdgeCount,
+            NodeCount = mst.NodeCount,
+            TotalCost = mst.TotalCost,
+            Edges = mst.Edges.Select(ToEdgeResponse).ToList(),
+            ParentHops = parentHops
+        };
+    }
 }

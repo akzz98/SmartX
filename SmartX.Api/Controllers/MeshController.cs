@@ -49,4 +49,31 @@ public sealed class MeshController : ControllerBase
             return Task.FromResult<ActionResult<MeshTraversalResponse>>(NotFound(new { error = ex.Message }));
         }
     }
+
+    /// <summary>
+    /// GET /api/mesh/mst?root=sx-gateway&amp;onlineOnly=false —
+    /// Prim’s MST edges, total power cost, and per-node parent hop toward the gateway.
+    /// </summary>
+    [HttpGet("mst")]
+    public Task<ActionResult<MeshMstResponse>> GetMst(
+        [FromQuery] string? root,
+        [FromQuery] bool onlineOnly = false,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            return Task.FromResult<ActionResult<MeshMstResponse>>(
+                Ok(_store.GetMeshMst(root, onlineOnly)));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return Task.FromResult<ActionResult<MeshMstResponse>>(NotFound(new { error = ex.Message }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Task.FromResult<ActionResult<MeshMstResponse>>(BadRequest(new { error = ex.Message }));
+        }
+    }
 }
