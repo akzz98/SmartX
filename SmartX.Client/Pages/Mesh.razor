@@ -1,7 +1,7 @@
 @page "/mesh"
 @inject HttpClient Http
 
-@* Pillar 3: mesh viz + MST route tracking (7.1–7.2); AVL history; traversal/MST copy in 7.4. *@
+@* Pillar 3: mesh viz, route track, AVL history, operator-friendly traversal/MST (7.1–7.4). *@
 
 <PageTitle>Mesh topology — Smart-X</PageTitle>
 
@@ -10,8 +10,8 @@
         <p class="mesh-kicker">Final PoE · Network Topology and Mesh Routing</p>
         <h1>Topology dashboard</h1>
         <p class="mesh-lead">
-            Live wireless mesh with online/down encoding. Select a sensor by id or MAC
-            to highlight its Prim MST hop path toward the gateway.
+            Live wireless mesh with online/down encoding. Track a sensor’s efficient hop path,
+            review reachability when relays fail, and compare the full mesh to the power-saving backbone.
         </p>
     </header>
 
@@ -164,6 +164,119 @@
         </article>
     }
 
+    @if (traversal is not null || mstDesign is not null)
+    {
+        <article class="mesh-panel" id="mesh-ops-brief">
+            <h2>Operator routing briefing</h2>
+            <p class="mesh-hint">
+                Plain-language view of live reachability and the power-efficient routing tree
+                (same data as the BFS traversal and Prim MST APIs — without the CS jargon).
+            </p>
+
+            @if (traversal is not null)
+            {
+                <section class="mesh-brief-block">
+                    <h3>Who can still reach the gateway?</h3>
+                    <p>
+                        Starting from the site gateway, we walked every live wireless hop
+                        (nearest neighbours first).
+                        <strong>@traversal.ReachableOnlineIds.Count</strong> ESP32(s) are still reachable,
+                        <strong class="@(traversal.DownNodeIds.Count > 0 ? "mesh-bad" : null)">@traversal.DownNodeIds.Count</strong> are down,
+                        and
+                        <strong class="@(traversal.CutOffOnlineIds.Count > 0 ? "mesh-bad" : null)">@traversal.CutOffOnlineIds.Count</strong>
+                        are powered but cut off behind a failed relay.
+                    </p>
+
+                    @if (traversal.DownNodeIds.Count > 0)
+                    {
+                        <p class="mesh-brief-list-label">Down devices</p>
+                        <ul class="mesh-brief-list">
+                            @foreach (var id in traversal.DownNodeIds)
+                            {
+                                <li>@id</li>
+                            }
+                        </ul>
+                    }
+
+                    @if (traversal.CutOffOnlineIds.Count > 0)
+                    {
+                        <p class="mesh-brief-list-label">Cut off (online but no live path)</p>
+                        <ul class="mesh-brief-list">
+                            @foreach (var id in traversal.CutOffOnlineIds)
+                            {
+                                <li>@id</li>
+                            }
+                        </ul>
+                    }
+
+                    @if (traversal.DownNodeSuggestions.Count > 0)
+                    {
+                        <p class="mesh-brief-list-label">Suggested detours when a relay is down</p>
+                        <ul class="mesh-brief-list">
+                            @foreach (var tip in traversal.DownNodeSuggestions)
+                            {
+                                <li>
+                                    If <code>@tip.DownNodeId</code> stays offline,
+                                    @if (!string.IsNullOrEmpty(tip.SuggestedNextHop))
+                                    {
+                                        <text>
+                                            route via <code>@tip.SuggestedNextHop</code>
+                                            (@string.Join(" → ", tip.AlternatePathToNextHop)).
+                                        </text>
+                                    }
+                                    else
+                                    {
+                                        <text>no live neighbour is available yet — wait for recovery or a redundant link.</text>
+                                    }
+                                    @if (tip.IdealPathFromRoot.Count > 0)
+                                    {
+                                        <span class="mesh-muted"> Ideal path was @string.Join(" → ", tip.IdealPathFromRoot).</span>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="mesh-hint">All relays look healthy — no detours required right now.</p>
+                    }
+                </section>
+            }
+
+            @if (mstDesign?.Comparison is { } cmp)
+            {
+                <section class="mesh-brief-block">
+                    <h3>Power-efficient backbone (vs full mesh)</h3>
+                    <p>
+                        The site has <strong>@cmp.FullMeshEdgeCount</strong> wireless links
+                        (total radio cost <strong>@cmp.FullMeshTotalCost.ToString("0.##")</strong>).
+                        The power-efficient routing tree keeps only
+                        <strong>@cmp.MstEdgeCount</strong> links
+                        (cost <strong>@cmp.MstTotalCost.ToString("0.##")</strong>) —
+                        dropping <strong>@cmp.EdgesSaved</strong> redundant hops and saving about
+                        <strong>@cmp.CostSavingPercent.ToString("0.#")%</strong> transmit cost
+                        while still connecting every node to the gateway.
+                    </p>
+                    <p class="mesh-hint">@cmp.Summary</p>
+                    @if (cmp.RedundantEdges.Count > 0)
+                    {
+                        <p class="mesh-brief-list-label">Links not needed on the efficient backbone</p>
+                        <ul class="mesh-brief-list mesh-brief-list-compact">
+                            @foreach (var edge in cmp.RedundantEdges.Take(8))
+                            {
+                                <li>@edge.FromId ↔ @edge.ToId (cost @edge.Weight.ToString("0.##"))@(string.IsNullOrEmpty(edge.Label) ? "" : $" — {edge.Label}")</li>
+                            }
+                            @if (cmp.RedundantEdges.Count > 8)
+                            {
+                                <li>…and @(cmp.RedundantEdges.Count - 8) more</li>
+                            }
+                        </ul>
+                    }
+                </section>
+            }
+        </article>
+    }
+
     <header class="mesh-subheader" id="mesh-history">
         <h2>Historical log — selected sensor</h2>
         <p class="mesh-lead">
@@ -294,6 +407,8 @@
     private List<SensorResponse> sensors = [];
     private MeshTopologySnapshotResponse? topology;
     private MeshMstResponse? mst;
+    private MeshMstResponse? mstDesign;
+    private MeshTraversalResponse? traversal;
     private Dictionary<string, Point> layout = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> parentByNode = new(StringComparer.OrdinalIgnoreCase);
     private List<string> routePath = [];
@@ -361,6 +476,12 @@
             mst = await Http.GetFromJsonAsync<MeshMstResponse>(
                 "api/mesh/mst?onlineOnly=true",
                 GatewayJson.Options);
+            mstDesign = await Http.GetFromJsonAsync<MeshMstResponse>(
+                "api/mesh/mst",
+                GatewayJson.Options);
+            traversal = await Http.GetFromJsonAsync<MeshTraversalResponse>(
+                "api/mesh/traversal",
+                GatewayJson.Options);
 
             if (topology is null)
             {
@@ -383,6 +504,8 @@
         {
             topology = null;
             mst = null;
+            mstDesign = null;
+            traversal = null;
             layout = new Dictionary<string, Point>(StringComparer.OrdinalIgnoreCase);
             parentByNode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             loadError = "Gateway unreachable. Start SmartX.Api and reload.";
@@ -391,6 +514,8 @@
         {
             topology = null;
             mst = null;
+            mstDesign = null;
+            traversal = null;
             layout = new Dictionary<string, Point>(StringComparer.OrdinalIgnoreCase);
             parentByNode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             loadError = "Could not load the mesh topology.";
