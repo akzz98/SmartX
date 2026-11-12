@@ -1,6 +1,6 @@
 ﻿@page "/"
 
-@* Three-pillar startup: Telemetry + Command Stream live; Mesh locked until Final PoE Stage 2. *@
+@* Three-pillar startup: Telemetry, Command Stream, and Mesh routing all reachable. *@
 
 <PageTitle>Smart-X Gateway — Startup</PageTitle>
 
@@ -10,7 +10,7 @@
         <h1>Select an operational pillar</h1>
         <p class="startup-lead">
             Three pillars, one gateway. Use the sidebar groups — Telemetry, Command stream, Mesh routing —
-            instead of a flat page list. Mesh unlocks in the Final PoE.
+            instead of a flat page list.
         </p>
     </header>
 
@@ -29,12 +29,12 @@
             <span class="pillar-action">Open command stream</span>
         </a>
 
-        <div class="pillar pillar-locked" aria-disabled="true">
-            <span class="pillar-status">Pillar 3 · Locked</span>
+        <a class="pillar pillar-enabled" href="mesh">
+            <span class="pillar-status">Pillar 3 · Available</span>
             <h2>Network Topology and Mesh Routing</h2>
-            <p>Site mesh, BFS/DFS hops, and power-efficient MST routing. Enabled in Final PoE Stage 2.</p>
-            <span class="pillar-action">Unavailable until Final PoE</span>
-        </div>
+            <p>Site mesh, BFS/DFS hops, and power-efficient MST routing for telemetry back to the gateway.</p>
+            <span class="pillar-action">Open topology dashboard</span>
+        </a>
     </div>
 
     <div class="startup-pillar-links">
@@ -55,8 +55,8 @@
             <p><a href="commands">Stream console</a></p>
         </div>
         <div>
-            <h3>Mesh routing</h3>
-            <p class="startup-locked-note">Topology dashboard locked until Stage 2.</p>
+            <h3>Mesh routing shortcuts</h3>
+            <p><a href="mesh">Topology dashboard</a></p>
         </div>
     </div>
 </section>

@@ -1,0 +1,42 @@
+.mesh-kicker {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5b6472;
+}
+
+.mesh-header h1 {
+    margin: 0 0 0.45rem;
+    font-size: 1.6rem;
+}
+
+.mesh-lead {
+    max-width: 44rem;
+    margin: 0 0 1.25rem;
+    color: #4a5563;
+}
+
+.mesh-panel {
+    border: 1px solid #cfd6df;
+    border-radius: 4px;
+    background: #fff;
+    padding: 1rem 1.1rem;
+    max-width: 40rem;
+}
+
+.mesh-panel h2 {
+    margin: 0 0 0.55rem;
+    font-size: 1.05rem;
+}
+
+.mesh-panel ul {
+    margin: 0 0 1rem;
+    padding-left: 1.2rem;
+    color: #4a5563;
+}
+
+.mesh-ops {
+    margin: 0;
+    font-size: 0.9rem;
+}

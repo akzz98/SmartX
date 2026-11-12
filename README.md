@@ -2,7 +2,7 @@
 
 Simulated South African IoT gateway for hydroponics, utilities, and site-meter telemetry. Heterogeneous ESP32 packets (float environmental, integer power, Boolean actuator) are ingested by an ASP.NET Core API and investigated in a Blazor WebAssembly operator console.
 
-This repository covers **Part 1 Task 2** (telemetry ingestion + Progressive Disclosure) and official **Part 2** (Real-Time Command Stream: queues, stacks, dictionaries, sets, predictive suggestions). Network Topology / Mesh Routing stays visible but **locked** until the final PoE.
+This repository covers **Part 1 Task 2** (telemetry ingestion + Progressive Disclosure), official **Part 2** (Real-Time Command Stream: queues, stacks, dictionaries, sets, predictive suggestions), and Final PoE **Part 3** (Network Topology / Mesh Routing — pillar unlocked; graph/MST/tree features in progress).
 
 ## Requirements
 
@@ -59,7 +59,8 @@ JSON uses camelCase property names and string enums (`"critical"`, not `2`).
 
 Operator paths:
 
-- `/` — three-pillar startup (**ingestion** and **command stream** enabled; mesh locked)
+- `/` — three-pillar startup (telemetry, command stream, mesh)
+- `/mesh` — Network Topology dashboard (shell; graph/MST/tree fill in later stages)
 - `/telemetry` — Level 0 overview
 - `/telemetry/fleet` — Level 1 filters (executed on the API)
 - `/telemetry/devices/{id}` — Level 2 detail, attachments
