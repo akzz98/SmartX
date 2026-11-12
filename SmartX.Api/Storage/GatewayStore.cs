@@ -154,6 +154,18 @@ public sealed class GatewayStore
         }
     }
 
+    /// <summary>
+    /// Mesh topology snapshot: nodes, undirected edges, and freshness-derived online status.
+    /// </summary>
+    public MeshTopologySnapshotResponse GetMeshTopologySnapshot()
+    {
+        lock (_gate)
+        {
+            MeshTopologySeeder.RefreshOnlineStatus(this);
+            return MeshDtoMapper.ToTopologySnapshot(Mesh);
+        }
+    }
+
     public UniqueAlertsResponse GetUniqueActiveAlerts()
     {
         lock (_gate)
