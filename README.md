@@ -4,6 +4,8 @@ Simulated South African IoT gateway for hydroponics, utilities, and site-meter t
 
 This repository covers **Part 1 Task 2** (telemetry ingestion + Progressive Disclosure), official **Part 2** (Real-Time Command Stream: queues, stacks, dictionaries, sets, predictive suggestions), and Final PoE **Part 3** (Network Topology and Mesh Routing: AVL history trees, graph traversal, Prim MST, topology dashboard).
 
+**Demo video (YouTube):** [https://youtu.be/33HNgywCXoc](https://youtu.be/33HNgywCXoc)
+
 ## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) — for local `dotnet run` / Visual Studio
@@ -204,6 +206,8 @@ Final PoE did **not** replace earlier work. One process hosts all three pillars 
 **Same seeds, richer story.** Part 1 silent sump and Part 2 inverter alerts also appear as mesh-down / HashSet keys; Part 3’s `MeshDownScenarioSeeder` ages the inverter so BFS healing is visible on the topology page without breaking the command-stream demo.
 
 ## Part 3 — Network Topology and Mesh Routing (how to demo)
+
+**YouTube walkthrough:** [https://youtu.be/33HNgywCXoc](https://youtu.be/33HNgywCXoc)
 
 Restart **SmartX.Api** so mesh seeds reload: full undirected mesh (`MeshTopologySeeder`), forced mid-mesh relay down (`MeshDownScenarioSeeder` → `sx-pwr-inverter`), plus the existing silent sump disconnect.
 
