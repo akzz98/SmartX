@@ -1,78 +1,13 @@
-.commands-kicker {
-    margin: 0 0 0.35rem;
-    font-size: 0.75rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #5b6472;
-}
-
-.commands-header h1 {
-    margin: 0 0 0.45rem;
-    font-size: 1.6rem;
-}
-
-.commands-lead {
-    max-width: 44rem;
-    margin: 0 0 0.45rem;
-    color: #4a5563;
-}
+/* Shared page chrome / KPIs / panels / tables live in wwwroot/css/app.css (Stage 9.1). */
 
 .commands-auto {
     margin: 0 0 1.25rem;
     font-size: 0.82rem;
-    color: #5b6472;
-}
-
-.commands-error {
-    color: var(--sx-critical);
-    font-weight: 600;
-}
-
-.commands-ok {
-    color: var(--sx-normal);
-    font-weight: 600;
+    color: var(--sx-muted);
 }
 
 .commands-override {
     margin-bottom: 1rem;
-}
-
-.commands .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 1.25rem;
-}
-
-.commands .kpi {
-    border: 1px solid #cfd6df;
-    border-radius: 4px;
-    background: #fff;
-    padding: 0.85rem 0.95rem;
-}
-
-.commands .kpi-label {
-    display: block;
-    margin: 0 0 0.35rem;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: #5b6472;
-}
-
-.commands .kpi-value {
-    font-size: 1.45rem;
-    font-weight: 700;
-    color: #1b2430;
-}
-
-.commands .kpi-alert .kpi-value {
-    color: var(--sx-critical);
-}
-
-.commands .kpi-stale .kpi-value {
-    color: var(--sx-warning);
 }
 
 .commands-panels {
@@ -80,19 +15,6 @@
     grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
     gap: 0.75rem;
     margin-bottom: 0.75rem;
-}
-
-.commands-panel {
-    border: 1px solid #cfd6df;
-    border-radius: 4px;
-    background: #fff;
-    padding: 0.85rem 0.95rem;
-    margin-bottom: 0.75rem;
-}
-
-.commands-panel h2 {
-    margin: 0 0 0.65rem;
-    font-size: 0.95rem;
 }
 
 .commands-meta {
@@ -107,12 +29,12 @@
     font-weight: 700;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: #5b6472;
+    color: var(--sx-muted);
 }
 
 .commands-meta dd {
     margin: 0.15rem 0 0;
-    color: #1b2430;
+    color: var(--sx-ink);
     word-break: break-word;
 }
 
@@ -123,11 +45,6 @@
 
 .commands-keys code {
     font-size: 0.82rem;
-}
-
-.commands-empty {
-    margin: 0 0 0.65rem;
-    color: #4a5563;
 }
 
 .commands-subhead {
@@ -154,14 +71,14 @@
     justify-content: space-between;
     align-items: flex-start;
     padding: 0.65rem 0.7rem;
-    border: 1px solid #e3e8ef;
-    border-radius: 4px;
-    background: #f8fafc;
+    border: 1px solid var(--sx-line-soft);
+    border-radius: var(--sx-radius);
+    background: var(--sx-surface-muted);
 }
 
 .commands-suggestions p {
     margin: 0.35rem 0 0;
-    color: #4a5563;
+    color: var(--sx-lead);
     font-size: 0.9rem;
 }
 
@@ -172,53 +89,9 @@
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #5b6472;
-}
-
-.commands-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-}
-
-.commands-table th,
-.commands-table td {
-    text-align: left;
-    padding: 0.4rem 0.5rem;
-    border-bottom: 1px solid #e3e8ef;
-    vertical-align: top;
-}
-
-.commands-table th {
-    font-size: 0.72rem;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: #5b6472;
+    color: var(--sx-muted);
 }
 
 .commands-filter {
     margin-bottom: 1rem;
-}
-
-.commands-ops {
-    margin: 1rem 0 0;
-    font-size: 0.9rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem 0.5rem;
-    align-items: center;
-}
-
-.commands-refresh {
-    font-size: 0.9rem;
-    padding: 0.25rem 0.55rem;
-    border: 1px solid #cfd6df;
-    background: #fff;
-    color: #1b2430;
-    cursor: pointer;
-}
-
-.commands-refresh:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
 }

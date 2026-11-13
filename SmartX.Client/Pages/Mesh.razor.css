@@ -1,21 +1,4 @@
-.mesh-kicker {
-    margin: 0 0 0.35rem;
-    font-size: 0.75rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--sx-muted);
-}
-
-.mesh-header h1 {
-    margin: 0 0 0.45rem;
-    font-size: 1.6rem;
-}
-
-.mesh-lead {
-    max-width: 44rem;
-    margin: 0 0 1.25rem;
-    color: var(--sx-lead);
-}
+/* Shared page chrome / panels / tables / buttons live in wwwroot/css/app.css (Stage 9.1). */
 
 .mesh-subheader {
     margin: 1.4rem 0 0.75rem;
@@ -24,6 +7,7 @@
 .mesh-subheader h2 {
     margin: 0 0 0.35rem;
     font-size: 1.2rem;
+    color: var(--sx-ink);
 }
 
 .mesh-toolbar {
@@ -32,24 +16,6 @@
 
 .mesh-range {
     margin-bottom: 1rem;
-}
-
-.mesh-error {
-    color: var(--sx-critical);
-    font-weight: 600;
-}
-
-.mesh-panel {
-    border: 1px solid var(--sx-line);
-    border-radius: 4px;
-    background: #fff;
-    padding: 1rem 1.1rem;
-    margin-bottom: 0.85rem;
-}
-
-.mesh-panel h2 {
-    margin: 0 0 0.55rem;
-    font-size: 1.05rem;
 }
 
 .mesh-meta {
@@ -72,10 +38,7 @@
     margin: 0.15rem 0 0;
     font-size: 1.15rem;
     font-weight: 700;
-}
-
-.mesh-ok {
-    color: var(--sx-normal);
+    color: var(--sx-ink);
 }
 
 .mesh-bad {
@@ -106,8 +69,8 @@
 }
 
 .mesh-swatch-gateway {
-    background: #1b4f8a;
-    border-color: #1b4f8a;
+    background: var(--sx-gateway);
+    border-color: var(--sx-gateway);
 }
 
 .mesh-swatch-online {
@@ -129,14 +92,14 @@
 }
 
 .mesh-swatch-path {
-    background: #c2410c;
-    border-color: #c2410c;
+    background: var(--sx-path);
+    border-color: var(--sx-path);
 }
 
 .mesh-brief-block {
     margin: 0 0 1.1rem;
     padding-bottom: 0.85rem;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--sx-line-soft);
 }
 
 .mesh-brief-block:last-child {
@@ -148,6 +111,7 @@
 .mesh-brief-block h3 {
     margin: 0 0 0.4rem;
     font-size: 1rem;
+    color: var(--sx-ink);
 }
 
 .mesh-brief-block p {
@@ -186,7 +150,7 @@
 .mesh-route-path {
     margin: 0 0 0.85rem;
     padding: 0.55rem 0.75rem;
-    border-left: 3px solid #c2410c;
+    border-left: 3px solid var(--sx-path);
     background: #fff7ed;
     font-family: ui-monospace, Consolas, monospace;
     font-size: 0.88rem;
@@ -208,9 +172,9 @@
     width: 100%;
     overflow-x: auto;
     margin: 0 0 1rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--sx-line-soft);
     background:
-        radial-gradient(circle at 50% 50%, #f8fafc 0%, #eef2f7 70%, #e8eef5 100%);
+        radial-gradient(circle at 50% 50%, var(--sx-surface-muted) 0%, #eef2f7 70%, #e8eef5 100%);
 }
 
 .mesh-canvas {
@@ -233,7 +197,7 @@
 }
 
 .mesh-link-path {
-    stroke: #c2410c;
+    stroke: var(--sx-path);
     stroke-width: 3.2;
     stroke-opacity: 1;
 }
@@ -245,12 +209,12 @@
 }
 
 .mesh-node-path {
-    stroke: #c2410c;
+    stroke: var(--sx-path);
     stroke-width: 3;
 }
 
 .mesh-node-gateway {
-    fill: #1b4f8a;
+    fill: var(--sx-gateway);
 }
 
 .mesh-node-online {
@@ -268,25 +232,6 @@
     pointer-events: none;
 }
 
-.mesh-hint {
-    margin: 0 0 0.75rem;
-    color: var(--sx-muted);
-    font-size: 0.9rem;
-}
-
-.mesh-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-}
-
-.mesh-table th,
-.mesh-table td {
-    text-align: left;
-    padding: 0.4rem 0.5rem;
-    border-bottom: 1px solid #e2e8f0;
-}
-
 .mesh-row-down td {
     color: var(--sx-critical);
 }
@@ -295,26 +240,6 @@
     background: #fff7ed;
 }
 
-.mesh-link-btn {
-    border: 1px solid var(--sx-line);
-    background: #fff;
-    color: var(--sx-ink);
-    font: inherit;
-    font-size: 0.8rem;
-    padding: 0.15rem 0.45rem;
-    cursor: pointer;
-}
-
-.mesh-link-btn:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-}
-
 .mesh-vertex {
     cursor: pointer;
-}
-
-.mesh-ops {
-    margin: 1rem 0 0;
-    font-size: 0.9rem;
 }
