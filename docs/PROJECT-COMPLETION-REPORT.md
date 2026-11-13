@@ -61,9 +61,9 @@ POE</p>
 
 ## 1. Executive summary {#executive-summary}
 
-Smart-X is a simulated South African IoT gateway for hydroponics, utilities, and site-meter telemetry. The simulated devices are ESP32-class endpoints (Espressif Systems, n.d.). Heterogeneous packets — environmental floats, power integers, and actuator booleans — are validated and stored by an ASP.NET Core API (Microsoft, 2025i) and investigated in a Blazor WebAssembly operator console (Microsoft, 2025b).
+I built Smart-X as a simulated South African IoT gateway for hydroponics, utilities, and site-meter readings. The devices are simulated ESP32s (Espressif Systems, n.d.). They send mixed packets: environmental floats, power integers, and actuator on/off values. An ASP.NET Core API checks and stores those packets (Microsoft, 2025i). I look at them in a Blazor WebAssembly console (Microsoft, 2025b).
 
-The Final PoE delivers a unified three-pillar application. One `GatewayStore` singleton, registered for the process lifetime (Microsoft, 2025c), and one boot sequence seed the fleet, faults, queues, and mesh so a single API restart demos the full arc.
+This is one app with three parts, not three separate demos. I keep everything in one `GatewayStore` singleton for the life of the process (Microsoft, 2025c). One boot seeds the fleet, the faults, the queues, and the mesh. Restarting the API is enough to run the full demo again.
 
 | Pillar | Focus | Operator entry |
 | --- | --- | --- |
@@ -75,38 +75,38 @@ The Final PoE delivers a unified three-pillar application. One `GatewayStore` si
 
 ### 2.1 Part 1 — Available Sensor Data Ingestion and Telemetry {#part-1}
 
-**Goal.** Ingest heterogeneous telemetry and let operators investigate the fleet through Progressive Disclosure — overview, then filters, then device detail, then history — without hiding silent or faulty devices. Progressive disclosure keeps secondary detail behind an explicit next step so the first screen stays readable (Nielsen, 2006).
+**What I wanted.** I needed to take in mixed telemetry and let an operator look at the fleet in steps: overview, then filters, then one device, then its history. Silent and faulty devices stay on the list. I used progressive disclosure so the first screen stays readable and the extra detail is one click away (Nielsen, 2006).
 
-**Delivered:**
+**What I built:**
 
-- Nested deployment forest (site, zone, sub-zone, node) with recursive validation. A tree is the natural model when each location contains further locations (Cormen et al., 2022).
-- Registration and typed ingest for environmental, power, and actuator packets, held in `List<T>` collections (Microsoft, 2025g).
-- Health and freshness classifiers (live, aging, stale, disconnected).
-- Seeded fault scenarios: temperature spike, stuck actuator, silent sensor, malformed frames, location outage, and recovery.
+- A nested deployment tree: site, zone, sub-zone, then node, checked recursively. A tree fits because each place contains smaller places (Cormen et al., 2022).
+- Registration and typed ingest for environmental, power, and actuator packets. I store them in `List<T>` collections (Microsoft, 2025g).
+- Health and freshness bands: live, aging, stale, and disconnected.
+- Seeded faults: a temperature spike, a stuck actuator, a silent sensor, bad frames, a location outage, and a recovery.
 - Multipart diagnostic attachments.
-- Blazor investigation UI at levels L0 to L3 (Microsoft, 2025b).
+- A Blazor investigation screen at levels L0 to L3 (Microsoft, 2025b).
 
-**Structures emphasised.** Lists, dictionaries for device resolve, and recursive tree validation for deployment. The .NET `Dictionary<TKey,TValue>` is a hash table, so a successful lookup does not scan the fleet (Microsoft, 2025d). Hash-table dictionaries are expected constant time under the usual uniform-hashing assumptions (Cormen et al., 2022).
+**Structures I used.** Lists, dictionaries to find a device, and a recursive check of the deployment tree. The .NET `Dictionary<TKey,TValue>` is a hash table, so a lookup does not walk the whole fleet (Microsoft, 2025d). With the usual hashing assumptions, that lookup is expected constant time (Cormen et al., 2022).
 
 ### 2.2 Part 2 — Real-Time Command Stream and History {#part-2}
 
-**Goal.** Process critical alerts ahead of the FIFO backlog, support manual actuator overrides with undo, track unique disconnect and error keys, and surface predictive suggestions.
+**What I wanted.** Critical alerts should jump ahead of the normal FIFO backlog. An operator should be able to override an actuator and undo that override. I also wanted unique disconnect and error keys, and suggestions based on what the operator has already done.
 
-**Delivered:**
+**What I built:**
 
-- A standard FIFO ingest queue, using `Queue<T>` (Microsoft, 2025l), beside a critical priority bypass queue. `PriorityQueue<TElement,TPriority>` dequeues the minimum priority key first (Microsoft, 2025k). Smart-X’s key is severity, then earlier `RaisedAt`.
-- A background `TelemetryQueueConsumer`, an ASP.NET Core hosted `BackgroundService` (Microsoft, 2026c). The request path only enqueues.
-- Priority severity ranking with a `RaisedAt` tie-breaker.
-- A command undo stack, `Stack<T>` (Microsoft, 2025n), and a `SortedDictionary` timeline so entries enumerate in key order without a separate sort on each read (Microsoft, 2025m).
-- `HashSet` unique alert keys for disconnects and errors, so a duplicate key is rejected (Microsoft, 2025e).
-- A recommendation engine with confidence scores normalised to the unit interval.
-- A `/commands` console with filters, issue and undo, suggestions, and a five-second auto-refresh driven by `PeriodicTimer` (Microsoft, 2025j).
+- A normal FIFO ingest queue, using `Queue<T>` (Microsoft, 2025l), next to a critical priority queue. `PriorityQueue<TElement,TPriority>` takes the smallest priority key first (Microsoft, 2025k). My key is severity, then the earlier `RaisedAt`.
+- A background `TelemetryQueueConsumer`. It is an ASP.NET Core hosted `BackgroundService` (Microsoft, 2026c). The request only enqueues.
+- A severity rank, with `RaisedAt` as the tie-breaker.
+- An undo stack, `Stack<T>` (Microsoft, 2025n), and a `SortedDictionary` timeline. Entries come out in key order, so I do not sort a list again on every read (Microsoft, 2025m).
+- `HashSet` keys for disconnects and errors. A duplicate key is rejected (Microsoft, 2025e).
+- A recommendation engine. Confidence is a score between 0 and 1.
+- A `/commands` page with filters, issue and undo, suggestions, and a five-second refresh from `PeriodicTimer` (Microsoft, 2025j).
 
-Lecturer feedback on Part 2 drove the Final PoE Stage 1 fixes: session state across navigation, a pillar-grouped menu, auto-refresh, the background consumer, the tie-breaker, disconnect detection, and confidence-based suggestions. The ledger is `docs/FEEDBACK-UPDATES.md`.
+After the Part 2 feedback I changed several things before and during Part 3. Filters now survive navigation. The menu is grouped by pillar. The command page refreshes itself. A background worker drains the queues. Equal-severity alerts use a time tie-break. Disconnects are detected. Suggestions use a confidence score instead of a hard-coded moisture rule. I logged that work in `docs/FEEDBACK-UPDATES.md`.
 
 ### 2.3 Part 3 — Network Topology and Mesh Routing {#part-3}
 
-**Goal.** Model the radio mesh, query historical telemetry efficiently, traverse for reachability and healing, and compute a power-efficient routing backbone to the gateway. A wireless mesh is a multi-hop network in which nodes forward for one another and extra links provide resilience (Akyildiz, Wang and Wang, 2005). Smart-X simulates that shape. It does not implement an 802.11s or 802.15.4 stack.
+**What I wanted.** I needed a radio mesh, a fast way to query old readings, a walk that shows who can still reach the gateway, and a cheap routing backbone. A wireless mesh is a multi-hop network: nodes forward for each other, and extra links give another path when one fails (Akyildiz, Wang and Wang, 2005). I simulated that shape. I did not implement an 802.11s or 802.15.4 stack.
 
 **Delivered:**
 
@@ -118,9 +118,9 @@ Lecturer feedback on Part 2 drove the Final PoE Stage 1 fixes: session state acr
 | Prim’s MST | Minimum-cost backbone and parent hops toward the gateway | `MeshMstBuilder`, `GET /api/mesh/mst` (about 25 links down to 16, about 47% cost saved) |
 | Topology UI | SVG mesh, route track by id or MAC, operator briefing, AVL log | `/mesh` |
 
-An AVL tree is a height-balanced binary search tree: after each insertion the heights of the two subtrees of every node differ by at most one (Adelson-Velsky and Landis, 1962). On a binary search tree, search and range walks cost time proportional to the height, and balance keeps that height logarithmic in the number of nodes (Cormen et al., 2022). Breadth-first and depth-first search are the standard graph walks; breadth-first search yields hop distance because it expands level by level (Cormen et al., 2022; Sedgewick and Wayne, 2011). Prim’s algorithm grows a minimum spanning tree from a chosen root by repeatedly adding the cheapest edge that leaves the tree (Prim, 1957).
+An AVL tree is a height-balanced binary search tree. After each insert, the two child subtrees of any node differ in height by at most one (Adelson-Velsky and Landis, 1962). On a binary search tree, search and range walks take time proportional to the height. Balance keeps that height logarithmic in the number of nodes (Cormen et al., 2022). Breadth-first and depth-first search are the usual graph walks. Breadth-first search gives hop distance because it expands one level at a time (Cormen et al., 2022; Sedgewick and Wayne, 2011). Prim’s algorithm grows a minimum spanning tree from a chosen root. Each step adds the cheapest edge that leaves the tree (Prim, 1957).
 
-**Seeded mesh fault.** `MeshDownScenarioSeeder` forces `sx-pwr-inverter` offline so healing hops are visible alongside the silent sump disconnect from Parts 1 and 2.
+**Seeded mesh fault.** `MeshDownScenarioSeeder` forces `sx-pwr-inverter` offline. I can then show a healing hop next to the silent sump disconnect from Parts 1 and 2.
 
 ## 3. Architecture of the unified system {#architecture}
 
@@ -141,17 +141,17 @@ An AVL tree is a height-balanced binary search tree: after each insertion the he
                                            └──────────────────────────┘
 ```
 
-The Blazor WebAssembly client calls the API with `HttpClient` (Microsoft, 2026d). API and client agree on camelCase property names and string enums through `System.Text.Json` and `JsonStringEnumConverter` (Microsoft, 2026g; Microsoft, 2025f). Cross-origin calls from `http://localhost:5270` to `http://localhost:5015` are allowed by the API’s CORS policy (Microsoft, 2026f).
+The Blazor WebAssembly client calls the API with `HttpClient` (Microsoft, 2026d). I made the API and the client agree on camelCase names and string enums, using `System.Text.Json` and `JsonStringEnumConverter` (Microsoft, 2026g; Microsoft, 2025f). The browser on `http://localhost:5270` is allowed to call `http://localhost:5015` by the API’s CORS policy (Microsoft, 2026f).
 
-Optional Docker Compose runs the same host ports (Docker, n.d.-a). There is no database. The in-memory store is reset by restarting the API.
+I can also start both with Docker Compose, on the same host ports (Docker, n.d.-a). There is no database. Restarting the API clears the in-memory store.
 
 ## 4. How to demonstrate the completed system {#demonstrate}
 
 1. Start the API, then the client, with `dotnet run` (Microsoft, 2026e) or with `docker compose up --build` (Docker, n.d.-a).
-2. Open `http://localhost:5270`. All three pillars report Available.
+2. Open `http://localhost:5270`. All three pillars say Available.
 3. Part 1: `/telemetry` shows 16 devices and the exceptions. Open a critical device.
 4. Part 2: `/commands` shows the FIFO peak, suggestions, unique keys, and issue or undo of an override.
-5. Part 3: `/mesh` shows the red down nodes, the tracked `sx-env-rack1-moist` MST path, the operator briefing (mesh versus MST savings), and the AVL historical log.
+5. Part 3: `/mesh` shows the red down nodes, the tracked `sx-env-rack1-moist` MST path, the operator briefing (full mesh versus the MST saving), and the AVL history log.
 
 API smoke:
 
@@ -165,214 +165,214 @@ curl http://localhost:5015/api/mesh/mst
 
 ## 5. Feedback-driven improvements (Parts 1–2 → Final PoE) {#feedback}
 
-Part 2 critique items were closed before and during the Part 3 work and logged in `docs/FEEDBACK-UPDATES.md`. They remain active in the unified app.
+I closed the Part 2 feedback before and during the Part 3 work, and I logged it in `docs/FEEDBACK-UPDATES.md`. Those fixes are still in the same app.
 
-- Operator session state survives navigation because the Blazor filters live in a singleton service, not in fields that the router discards with the page (Microsoft, 2025c).
-- Navigation is grouped by pillar rather than presented as a flat page list (Nielsen, 2006).
-- The command stream auto-refreshes on a `PeriodicTimer` (Microsoft, 2025j).
-- A background consumer drains the queues. Ingest does not drain them on the request thread (Microsoft, 2026c).
-- The priority queue breaks ties on time, using the comparison key of `PriorityQueue<TElement,TPriority>` (Microsoft, 2025k).
-- Disconnects are detected from freshness, then stored as `HashSet` keys so a repeat does not raise a second alert (Microsoft, 2025e).
-- Suggestions carry a normalised confidence score. The moisture-to-pump rule is not hard-coded.
+- I changed the filters so they survive navigation. They live in a Blazor singleton, not in fields the router throws away with the page (Microsoft, 2025c).
+- I grouped the menu by pillar. It is no longer a flat list of pages (Nielsen, 2006).
+- I made the command stream refresh itself with a `PeriodicTimer` (Microsoft, 2025j).
+- I added a background consumer to drain the queues. Ingest no longer drains them on the request (Microsoft, 2026c).
+- I break priority ties on time, using the comparison key of `PriorityQueue<TElement,TPriority>` (Microsoft, 2025k).
+- I detect disconnects from freshness and store them as `HashSet` keys, so the same disconnect is not raised twice (Microsoft, 2025e).
+- I score suggestions with a confidence between 0 and 1. I removed the hard-coded moisture-to-pump rule.
 
-These behaviours support the Final PoE requirement that the earlier parts still function.
+The earlier parts still run. That was a Final PoE requirement, and these changes keep them working.
 
 ## 6. Task 3 — architectural and algorithmic challenges (and how they were overcome) {#challenges}
 
-Final PoE Task 3 (Network Topology and Mesh Routing) was not a greenfield microservice. It had to land inside the existing Part 1 and Part 2 gateway without breaking Progressive Disclosure or the command stream (Nielsen, 2006). The challenges below are specific to this codebase.
+Final PoE Task 3 was network topology and mesh routing. I did not start a new service for it. I had to add it inside the Part 1 and Part 2 gateway without breaking progressive disclosure or the command stream (Nielsen, 2006). The problems below are the ones I actually hit in this code.
 
 ### 6.1 Shared contracts across API and Blazor WASM {#shared-contracts}
 
-**Challenge.** The Blazor client must display topology, traversal, MST, and AVL range results without re-implementing graph logic in JavaScript. Enums such as `FreshnessState` and `MeshNodeKind`, and nested DTOs, break easily if the JSON shape drifts (Microsoft, 2026g).
+**The problem.** The Blazor client has to show topology, traversal, the MST, and AVL range results without me rewriting the graph code in JavaScript. Enums such as `FreshnessState` and `MeshNodeKind`, and nested DTOs, break if the JSON shape drifts (Microsoft, 2026g).
 
-**Overcome.**
+**What I did.**
 
-- Mesh and AVL models and DTOs live in `SmartX.Shared`, referenced by both the API and the client.
-- API and client agree on camelCase names and string enums (`JsonStringEnumConverter`) (Microsoft, 2025f).
-- The client uses one `HttpClient`, `ApiBaseUrl` in `wwwroot/appsettings.json`, and `GatewayJson.Options` to deserialise (Microsoft, 2026d).
-- CORS allows `http://localhost:5270` to call `http://localhost:5015`, including the Docker configuration in `appsettings.Docker.json` (Microsoft, 2026f).
+- I put the mesh and AVL models and DTOs in `SmartX.Shared`. Both the API and the client reference that project.
+- I made both sides use camelCase names and string enums (`JsonStringEnumConverter`) (Microsoft, 2025f).
+- The client uses one `HttpClient`, `ApiBaseUrl` in `wwwroot/appsettings.json`, and `GatewayJson.Options` when it reads JSON (Microsoft, 2026d).
+- CORS lets `http://localhost:5270` call `http://localhost:5015`. The Docker settings in `appsettings.Docker.json` do the same (Microsoft, 2026f).
 
-**Evidence.** `MeshController` returns `MeshTopologySnapshotResponse`, `MeshTraversalResponse`, and `MeshMstResponse`. The `/mesh` page binds those same types.
+**How to see it.** `MeshController` returns `MeshTopologySnapshotResponse`, `MeshTraversalResponse`, and `MeshMstResponse`. The `/mesh` page binds those same types.
 
 ### 6.2 Choosing and integrating an AVL history tree (not a list scan) {#avl}
 
-**Challenge.** Part 1 already stored packets in lists for Progressive Disclosure history (Microsoft, 2025g). Task 3 required range queries, for example moisture for one device between two timestamps, that stay efficient as history grows. A full list scan would fail the “trees for historical queries” criterion and would look identical to Part 1.
+**The problem.** Part 1 already kept packets in lists for the history screens (Microsoft, 2025g). Task 3 asked for range queries, such as moisture for one device between two times, that stay fast as the history grows. A full list scan would fail the “trees for historical queries” part of the brief, and it would look the same as Part 1.
 
-**Overcome.**
+**What I did.**
 
-- A per-device AVL tree, `AvlTelemetryHistoryTree`, is keyed by timestamp then sequence and indexed by `TelemetryHistoryIndex` (Adelson-Velsky and Landis, 1962).
-- Every successful ingest also inserts into the tree, on the same write path as list history.
-- `QueryRange` prunes subtrees outside `[from, to]`. On a binary search tree a range walk only enters a subtree that can intersect the interval, so the cost follows the height plus the number of matches (Cormen et al., 2022). The API returns `nodesVisited` and `treeSize` so the UI can show that behaviour.
-- The `/mesh` historical log and `GET /api/sensors/{id}/history/range` share that path.
+- I added a per-device AVL tree, `AvlTelemetryHistoryTree`. The key is timestamp, then sequence. `TelemetryHistoryIndex` holds the trees (Adelson-Velsky and Landis, 1962).
+- Every accepted ingest writes the list and the tree on the same path.
+- `QueryRange` skips subtrees outside `[from, to]`. On a binary search tree the walk only enters a subtree that can overlap the window, so the cost follows the height plus the number of matches (Cormen et al., 2022). The API returns `nodesVisited` and `treeSize` so the screen can show that.
+- The `/mesh` history log and `GET /api/sensors/{id}/history/range` use that same path.
 
-**Evidence.** The demo device is `sx-env-rack1-moist` with metric `Moisture`. The range payload shows the match count and the visit count.
+**How to see it.** The demo device is `sx-env-rack1-moist`, metric `Moisture`. The range result shows how many samples matched and how many tree nodes were visited.
 
 ### 6.3 Modelling a realistic mesh on top of an existing fleet {#mesh-model}
 
-**Challenge.** The graph could not be a toy triangle. It had to use the seeded 16 ESP32s (Espressif Systems, n.d.), include a gateway vertex, give nodes more than one neighbour, and give edges a non-negative weight that means something for the MST (a power or RSSI-style cost), while staying consistent with live freshness.
+**The problem.** I could not use a toy triangle. The graph had to use the seeded 16 ESP32s (Espressif Systems, n.d.), include a gateway node, give devices more than one neighbour, and put a non-negative weight on each edge for the MST (a power or RSSI-style cost). Online and offline had to follow the same freshness as Parts 1 and 2.
 
-**Overcome.**
+**What I did.**
 
-- `MeshGraph` is an adjacency list: nodes are the gateway plus the sensors, and edges are undirected and weighted. Adjacency lists are the usual representation when algorithms walk neighbours rather than scan a matrix (Sedgewick and Wayne, 2011).
-- `MeshTopologySeeder` builds at least 20 links: rack clusters, the feeder bay, and an inter-rack backbone. Extra links are what give a mesh its alternate paths (Akyildiz, Wang and Wang, 2005).
-- `RefreshOnlineStatus` reclassifies nodes from `LastSeenAt`, so Part 1 and Part 2 disconnects, such as the silent sump, appear as mesh-down.
-- `MeshDownScenarioSeeder` ages `sx-pwr-inverter` so BFS healing is demoable after every boot.
+- `MeshGraph` is an adjacency list. Nodes are the gateway plus the sensors. Edges are undirected and weighted. An adjacency list fits when the algorithm walks neighbours instead of scanning a matrix (Sedgewick and Wayne, 2011).
+- `MeshTopologySeeder` builds at least 20 links: rack clusters, the feeder bay, and a backbone between racks. The extra links are what give a mesh another path (Akyildiz, Wang and Wang, 2005).
+- `RefreshOnlineStatus` sets each node from `LastSeenAt`. A Part 1 or Part 2 disconnect, such as the silent sump, shows up as mesh-down.
+- `MeshDownScenarioSeeder` ages `sx-pwr-inverter`, so the BFS healing demo is there after every boot.
 
-**Evidence.** `GET /api/mesh/topology` returns 17 nodes and 25 edges. The offline count includes the inverter and the sump.
+**How to see it.** `GET /api/mesh/topology` returns 17 nodes and 25 edges. The offline count includes the inverter and the sump.
 
 ### 6.4 Traversal semantics: topology vs live routing {#traversal}
 
-**Challenge.** A single BFS over every edge cannot answer both “what was the ideal path if everything were up?” and “who can still forward now?”. Operators also need an alternate hop when a relay is down, not only a visit-order list (Cormen et al., 2022).
+**The problem.** One BFS over every edge cannot answer both “what was the path if everything was up?” and “who can still forward now?”. The operator also needs another hop when a relay is down, not only the visit order (Cormen et al., 2022).
 
-**Overcome.**
+**What I did.**
 
-- `MeshGraphTraverser` supports BFS and DFS, with an `onlineOnly` flag that does not expand offline neighbours (Sedgewick and Wayne, 2011).
-- `MeshReachabilityAnalyzer` runs a topology BFS and a live BFS, then classifies each device as reachable, down, or cut-off. Cut-off means the device is online but stranded behind a failed relay.
-- For each down node it suggests a live neighbour closest, by hop count, to the gateway, and it exposes the ideal path beside the alternate.
-- The API is `GET /api/mesh/traversal`. The UI is the operator briefing on `/mesh`. The HTTP traversal reports BFS, because hop distance is what routing uses. DFS remains available on `MeshGraphTraverser.DepthFirst`.
+- `MeshGraphTraverser` does BFS and DFS. `onlineOnly` stops the walk from stepping through an offline neighbour (Sedgewick and Wayne, 2011).
+- `MeshReachabilityAnalyzer` runs a topology BFS and a live BFS. It then marks each device reachable, down, or cut-off. Cut-off means the device is on, but a failed relay has stranded it.
+- For each down node I suggest the live neighbour closest, by hop count, to the gateway. I also keep the ideal path next to that alternate.
+- The API is `GET /api/mesh/traversal`. The screen is the operator briefing on `/mesh`. That HTTP result is BFS, because hop count is what I use for routing. DFS is still there on `MeshGraphTraverser.DepthFirst`.
 
-**Evidence.** Traversal lists `sx-pwr-inverter` and `sx-env-sump-temp` as down, with suggested next hops, typically `sx-gateway`.
+**How to see it.** The traversal lists `sx-pwr-inverter` and `sx-env-sump-temp` as down, with a suggested next hop, usually `sx-gateway`.
 
 ### 6.5 MST choice (Prim) and comparing it to the full mesh {#mst}
 
-**Challenge.** The rubric accepts Prim or Kruskal. The product need is a gateway-rooted routing tree with parent hops for telemetry, plus a clear comparison of the full mesh with the efficient backbone.
+**The problem.** The rubric accepts Prim or Kruskal. I needed a routing tree rooted at the gateway, with a parent hop for each device, and a clear comparison of the full mesh against that cheaper backbone.
 
-**Overcome.**
+**What I did.**
 
-- `MeshMstBuilder` implements Prim’s algorithm (Prim, 1957). Kruskal’s algorithm also builds a minimum spanning tree, by sorting edges and unioning components (Kruskal, 1956). Prim was chosen because the tree is rooted at the gateway, the graph is already an adjacency list, and the parent of each node falls out of the growth from that root (Sedgewick and Wayne, 2011).
-- `onlineOnly=true` drives route tracking on `/mesh`. The full MST payload includes `MeshVsMstComparison`: edges saved, cost saved, and the redundant links.
-- The seeded comparison used in demos is stable: about 25 links at cost 42.7, against 16 links at cost 22.7, about 47 percent of the radio cost saved.
+- `MeshMstBuilder` uses Prim’s algorithm (Prim, 1957). Kruskal’s algorithm also builds a minimum spanning tree, by sorting every edge and joining components (Kruskal, 1956). I chose Prim because the tree starts at the gateway, the graph is already an adjacency list, and each node’s parent comes out of that growth (Sedgewick and Wayne, 2011).
+- `onlineOnly=true` is what `/mesh` uses when it tracks a route. The full MST payload includes `MeshVsMstComparison`: edges saved, cost saved, and the links I dropped.
+- The seeded numbers stay the same each boot: about 25 links at cost 42.7, against 16 links at cost 22.7. That is about 47 percent of the radio cost saved.
 
-**Evidence.** `GET /api/mesh/mst` returns the comparison block. The SVG highlights `sx-env-rack1-moist` through to `sx-gateway`.
+**How to see it.** `GET /api/mesh/mst` returns the comparison. The SVG highlights the path from `sx-env-rack1-moist` to `sx-gateway`.
 
 ### 6.6 Keeping Part 1 and Part 2 alive under Part 3 load {#keep-alive}
 
-**Challenge.** Mesh APIs and a heavy `/mesh` page risked regressions: starving the queue consumer, blocking the UI, or treating Part 3 as a separate app.
+**The problem.** The mesh APIs and the `/mesh` page could have starved the queue consumer, frozen the screen, or turned Part 3 into a separate app.
 
-**Overcome.**
+**What I did.**
 
-- Mesh reads refresh status under the existing `GatewayStore` lock. They do not replace the ingest and queue paths.
-- The hosted `TelemetryQueueConsumer` keeps draining priority then FIFO, independently of topology GETs (Microsoft, 2026c).
-- `/mesh` loads topology, MST, traversal, and history asynchronously, with explicit callouts when the API is down, empty, or in error (Microsoft, 2025b).
-- The startup menu and the sidebar keep the three pillars. The README documents a one-boot demo across all three.
+- Mesh reads refresh status under the existing `GatewayStore` lock. They do not replace ingest or the queues.
+- The hosted `TelemetryQueueConsumer` still drains priority, then FIFO, even while topology GETs are running (Microsoft, 2026c).
+- `/mesh` loads topology, the MST, traversal, and history asynchronously. If the API is down, empty, or in error, the page says so (Microsoft, 2025b).
+- The startup menu and the sidebar still show all three pillars. The README explains how to demo all three from one boot.
 
-**Evidence.** A fresh-restart smoke (checklist Stage 9.3) shows the summary, the stream snapshot and suggestions, and the mesh topology, traversal, and MST all succeeding together.
+**How to see it.** A fresh-restart smoke (checklist Stage 9.3) gets the summary, the stream snapshot and suggestions, and the mesh topology, traversal, and MST all at once.
 
 ## 7. Key learnings (linked to actual Smart-X tasks) {#learnings}
 
-These lessons come from implementing Parts 1 to 3 in one gateway. They are not a textbook summary detached from the code.
+These are things I learned while building Parts 1 to 3 in one gateway. They come from this code, not from a textbook on its own.
 
 ### 7.1 Data structures — pick the structure that matches the operator question {#structures}
 
-| Operator question | Structure used in Smart-X | Why it fits |
+| Question I had to answer | What I used | Why I chose it |
 | --- | --- | --- |
-| Which device is this id or MAC? | Dictionaries in `SensorFleet` | Expected O(1) resolve on ingest and command (Microsoft, 2025d; Cormen et al., 2022) |
-| What happened to overrides and alerts over time? | `SortedDictionary` timeline | Ordered history without re-sorting a list on each GET (Microsoft, 2025m) |
-| Has this disconnect already been raised? | `HashSet` unique keys | Duplicate suppression (Microsoft, 2025e) |
+| Which device is this id or MAC? | Dictionaries in `SensorFleet` | Expected O(1) lookup on ingest and command (Microsoft, 2025d; Cormen et al., 2022) |
+| What happened to overrides and alerts over time? | `SortedDictionary` timeline | Ordered history, without sorting a list again on each GET (Microsoft, 2025m) |
+| Has this disconnect already been raised? | `HashSet` unique keys | A duplicate is dropped (Microsoft, 2025e) |
 | Moisture for rack 1 between T1 and T2? | Per-device AVL tree | Range walk about log n + k; `nodesVisited` shows it (Adelson-Velsky and Landis, 1962) |
 | Who is linked on the radio mesh? | Adjacency-list `MeshGraph` | Neighbour scans, BFS, and Prim (Sedgewick and Wayne, 2011) |
 | Cheapest backbone to the gateway? | Prim MST parent map | Gateway-rooted hops for `/mesh` (Prim, 1957) |
 | Critical alert versus FIFO backlog? | Priority queue plus FIFO queue | Severity, then time, versus arrival order (Microsoft, 2025k; Microsoft, 2025l) |
 
-**Learning.** Structures were chosen for the query the UI or API must answer, then seeded so the demo is deterministic. Replacing a list with an AVL paid off because ingest writes both and the range API exposes the efficiency counts the operator can see.
+**What I took from this.** I picked each structure for the question the screen or the API has to answer, then seeded it so the demo does not change between boots. Swapping a list for an AVL was worth it because ingest writes both, and the range API shows the visit count.
 
 ### 7.2 Algorithms — mesh theory applied to a hydroponics gateway {#algorithms}
 
-- **BFS versus DFS.** BFS from `sx-gateway` gives hop distance and healing paths. DFS remains available for a deep walk. Reachability reporting prefers BFS because the useful question is how many hops lie between a device and a live neighbour (Cormen et al., 2022).
-- **Online-only walks.** IoT meshes fail in part, not only in whole (Akyildiz, Wang and Wang, 2005). Running a topology BFS beside a live BFS separates down (offline) from cut-off (online but stranded). Both appear in `GET /api/mesh/traversal`.
-- **MST as a radio budget.** The full mesh, about 25 links, is the resilient graph. Prim’s tree, about 16 links, is the day-to-day backbone (Prim, 1957). The comparison payload, about 47 percent of radio cost saved, makes that concrete.
-- **Prim rather than Kruskal here.** Telemetry routes toward a fixed gateway, so growing the tree from that root yields parent hops without a second rooting pass (Kruskal, 1956; Sedgewick and Wayne, 2011).
+- **BFS versus DFS.** BFS from `sx-gateway` gives hop distance and a healing path. I kept DFS for a deep walk. I report reachability with BFS because the useful question is how many hops sit between a device and a live neighbour (Cormen et al., 2022).
+- **Online-only walks.** A mesh can fail in part, not only all at once (Akyildiz, Wang and Wang, 2005). I run a topology BFS next to a live BFS. That separates down (offline) from cut-off (online, but stranded). Both show up in `GET /api/mesh/traversal`.
+- **MST as a radio budget.** The full mesh, about 25 links, is the resilient graph. Prim’s tree, about 16 links, is the one I would use day to day (Prim, 1957). The comparison says about 47 percent of the radio cost is saved.
+- **Why Prim, not Kruskal.** Readings route toward one fixed gateway. Growing the tree from that root gives me parent hops without a second pass to root the tree (Kruskal, 1956; Sedgewick and Wayne, 2011).
 
-**Learning.** Connectivity, faults, and spanning trees only show up clearly when they are tied to seeded devices (`sx-pwr-inverter` down, the moist-sensor path highlighted) and to plain wording on `/mesh`.
+**What I took from this.** The mesh ideas only become clear when I tie them to seeded devices (`sx-pwr-inverter` down, the moist-sensor path highlighted) and to plain wording on `/mesh`.
 
 ### 7.3 Async UI and background work — do not block the operator {#async}
 
-- Part 2 feedback made the cost of a synchronous queue drain obvious. Ingest must enqueue only. `TelemetryQueueConsumer` drains priority, then FIFO (Microsoft, 2026c).
-- `PeriodicTimer` on `/commands` (five seconds) refreshes KPIs and suggestions without a manual reload, and it pauses during override and undo so the operator’s action is not raced (Microsoft, 2025j).
-- `OperatorSessionState` is required because a Blazor “page” is a component. Filters kept only in the component disappear on navigation (Microsoft, 2025c).
-- `/mesh` loads topology, traversal, MST, and AVL history asynchronously, with explicit callouts, so a dead port 5015 is obvious instead of an endless spinner (Microsoft, 2025b).
+- The Part 2 feedback showed me the cost of draining the queue inside the request. Ingest now only enqueues. `TelemetryQueueConsumer` drains priority, then FIFO (Microsoft, 2026c).
+- `PeriodicTimer` on `/commands` (five seconds) refreshes the figures and suggestions without a manual reload. It pauses during override and undo so my click is not overwritten (Microsoft, 2025j).
+- I needed `OperatorSessionState` because a Blazor page is a component. Filters kept only on that component disappear when I navigate (Microsoft, 2025c).
+- `/mesh` loads topology, traversal, the MST, and AVL history asynchronously, and it says so if something fails. A dead port 5015 is obvious instead of a spinner that never ends (Microsoft, 2025b).
 
-**Learning.** A functioning operator app stays usable while the gateway does the work. Async Blazor plus a hosted consumer separates operator latency from queue processing.
+**What I took from this.** The screen has to stay usable while the gateway works. Async Blazor plus a hosted consumer keeps the operator’s wait separate from queue processing.
 
 ### 7.4 Integration discipline — one store, three pillars {#integration}
 
-- Sharing `GatewayStore` forced freshness, alerts, and mesh online flags to stay consistent. The silent sump and the mesh-down inverter are the same fact.
-- `SmartX.Shared` is the contract layer, so graph and AVL logic are not duplicated in the browser (Microsoft, 2026d).
-- Docker Compose later reused the same ports and the same CORS story. Containers did not require a second architecture (Docker, n.d.-a).
+- Sharing `GatewayStore` forced freshness, alerts, and mesh online flags to stay the same fact. The silent sump and the mesh-down inverter are that same fact.
+- `SmartX.Shared` is the contract, so I did not copy the graph and AVL code into the browser (Microsoft, 2026d).
+- When I added Docker Compose I kept the same ports and the same CORS setup. I did not design a second system for containers (Docker, n.d.-a).
 
-**Learning.** Evolving Part 1, then Part 2, then Part 3 in one process is harder than three demos. It matches the brief, and the repository tells one story.
+**What I took from this.** Building Part 1, then Part 2, then Part 3 in one process was harder than three separate demos. It matches the brief, and the repository tells one story.
 
 ### 7.5 What I would watch in a larger deployment {#production}
 
-In-memory state and boot seeds are appropriate for PROG7312 marking. A production deployment would add durable storage, authentication, and horizontal scale, without abandoning the same structures: indexed history, a graph snapshot, and an MST recomputed when the topology changes. Those directions are outlined in Stages 8.7–8.8.
+In-memory state and boot seeds are right for PROG7312 marking. If I deployed this for a real site I would add durable storage, login, and more than one instance. I would still keep the same structures: indexed history, a graph snapshot, and an MST recomputed when the topology changes. Those directions are outlined in Stages 8.7–8.8.
 
 ## 8. Recommended additional technologies {#technologies}
 
-Smart-X already runs locally, and optionally under Docker Compose (Docker, n.d.-a). The tools below would extend it toward a production-style IoT operations platform. Each one is tied to a concrete gap in Parts 1 to 3, and each is judged on security, scalability, performance, and workflow inside the .NET ecosystem.
+Smart-X already runs on my machine, and I can also start it with Docker Compose (Docker, n.d.-a). The tools below are what I would add for a real site. Each one fills a gap I hit in Parts 1 to 3. I judged them on security, scale, speed, and how well they fit .NET.
 
 ### 8.1 Cloud-hosted database (Azure SQL / Cosmos DB / PostgreSQL on Azure) {#database}
 
-**Replace.** The in-memory `GatewayStore`, which is lost on every API restart.
+**What I would replace.** The in-memory `GatewayStore`. It disappears every time the API restarts.
 
-**Add.** Persistent storage for sensors, packet history, commands, alerts, and mesh topology snapshots.
+**What I would add.** Stored sensors, packet history, commands, alerts, and mesh snapshots.
 
-**Why for Smart-X.** Markers and demos reset cleanly today. A real hydroponics site needs history across reboots and across more than one API instance. AVL and range queries would then read from indexed time-series or document partitions instead of process RAM.
+**Why.** A marker can reset the demo by restarting today. A real hydroponics site needs history after a reboot, and across more than one API instance. Range queries would then read an index instead of scanning process memory.
 
-**.NET rationale.** EF Core and the Azure Cosmos DB SDK plug into the existing ASP.NET Core dependency-injection pipeline without leaving C# (Microsoft, 2020; Microsoft, 2026h). Azure SQL Database is the managed relational option on the same platform (Microsoft, 2026i). Security: managed identity and Azure Key Vault, so connection strings are not stored in `appsettings`, and database RBAC instead of a shared administrator password (Microsoft, 2025h; Microsoft, 2026b). Scalability: several API replicas share one store; a Cosmos partition key such as `sensorId` or site matches fleet growth (Microsoft, 2026h). Performance: indexed range queries replace linear in-memory scans for history windows, while hot AVL and mesh graphs can stay in memory with a durable write-behind. Workflow: the same `dotnet` tooling already used for the solution.
+**How it fits .NET.** EF Core and the Azure Cosmos DB SDK plug into the ASP.NET Core services I already use, without leaving C# (Microsoft, 2020; Microsoft, 2026h). Azure SQL Database is the managed relational option on the same platform (Microsoft, 2026i). For security I would use managed identity and Azure Key Vault, so the connection string is not in `appsettings`, and database roles instead of one shared administrator password (Microsoft, 2025h; Microsoft, 2026b). Several API copies can share one store. A Cosmos partition key such as `sensorId` or site matches a growing fleet (Microsoft, 2026h). Indexed range queries replace a linear scan of history, while the hot AVL and mesh graphs can stay in memory and write through. I would still use the same `dotnet` tools.
 
 ### 8.2 GitHub Actions CI/CD {#cicd}
 
-**Replace.** A manual `dotnet build`, and “it works on my machine”, before a push.
+**What I would replace.** A manual `dotnet build`, and “it works on my machine”, before I push.
 
-**Add.** Workflows on `push` and `pull_request` that restore, build the API and the client, optionally run smoke curls against a test host, and publish Docker images (GitHub, n.d.; Microsoft, 2026e).
+**What I would add.** Workflows on `push` and `pull_request` that restore, build the API and the client, optionally curl a test host, and publish Docker images (GitHub, n.d.; Microsoft, 2026e).
 
-**Why for Smart-X.** The `POE` branch already has a long commit history. CI would guard mesh and queue regressions when feedback fixes and Part 3 land together.
+**Why.** The `POE` branch already has a long history. CI would catch a mesh or queue break when a feedback fix and Part 3 land together.
 
-**.NET rationale.** Official setup and `dotnet restore`, `build`, `test`, and `publish` are first-class, and a static Blazor publish fits the same job matrix as the API (Microsoft, 2026e). Security: OIDC federation to a registry avoids long-lived deploy secrets. Scalability: parallel jobs for API and client, and a NuGet cache across runs. Performance: fail on compile or test before a Docker layer build spends minutes (Docker, n.d.-b). Workflow: pull-request checks on `POE` and `main` match the existing GitHub remote (`akzz98/SmartX`).
+**How it fits .NET.** The official setup actions and `dotnet restore`, `build`, `test`, and `publish` are built for this, and a static Blazor publish fits the same job list as the API (Microsoft, 2026e). OIDC to a registry means I do not keep a long-lived deploy secret. The API and client jobs can run in parallel, and NuGet can be cached. The build should fail on compile or test before a Docker layer spends minutes (Docker, n.d.-b). Pull-request checks on `POE` and `main` match the GitHub remote I already use (`akzz98/SmartX`).
 
 ### 8.3 LLM-assisted alert summaries (Azure OpenAI / GitHub Models API) {#llm}
 
-**Replace.** Operators reading raw `HashSet` keys and long alert reasons on `/commands` (Microsoft, 2025e).
+**What I would replace.** An operator reading raw `HashSet` keys and long alert reasons on `/commands` (Microsoft, 2025e).
 
-**Add.** A summarisation endpoint that turns recent priority alerts and disconnect keys into a short operator brief, for example irrigation risk on rack 1, with the inverter relay down and a gateway hop suggested.
+**What I would add.** An endpoint that turns recent priority alerts and disconnect keys into a short brief. For example: irrigation risk on rack 1, inverter relay down, use the gateway hop.
 
-**Why for Smart-X.** Part 2 suggestions already score patterns. A language-model layer would narrate the current incident without replacing the deterministic recommendation engine.
+**Why.** Part 2 suggestions already score patterns. A language model could describe the current incident. I would not let it replace the fixed recommendation engine.
 
-**.NET rationale.** Semantic Kernel can sit as a scoped service beside the existing controllers (Microsoft, 2023). Azure OpenAI, now surfaced in Microsoft’s Foundry model docs, is the hosted model endpoint that brief would call (Microsoft, 2026j). Security: keep prompts on the server, do not send actuator secrets, and rate-limit the endpoint so the WebAssembly client cannot burn quota. Scalability: queue summary jobs, reusing the priority-queue pattern, so ingest latency stays untouched (Microsoft, 2025k). Performance: call the model only on an alert burst or an operator request, and cache the brief against a hash of the disconnect set. Workflow: a feature flag in `appsettings` toggles summaries without forking the Blazor UI.
+**How it fits .NET.** Semantic Kernel can sit as a scoped service next to the controllers I already have (Microsoft, 2023). Azure OpenAI, now described in Microsoft’s Foundry model docs, is the hosted model that brief would call (Microsoft, 2026j). I would keep prompts on the server, not send actuator secrets, and limit the rate so the WebAssembly client cannot spend the quota. Summary jobs can use the same priority-queue pattern, so ingest stays fast (Microsoft, 2025k). I would call the model only on an alert burst or when the operator asks, and cache the brief against a hash of the disconnect set. A flag in `appsettings` would turn summaries on without a second Blazor UI.
 
 ### 8.4 Home Assistant (MQTT / REST integration) {#home-assistant}
 
-**Replace.** Simulation-only ESP32 traffic into the gateway (Espressif Systems, n.d.).
+**What I would replace.** Simulated ESP32 traffic only (Espressif Systems, n.d.).
 
-**Add.** A bridge from Smart-X commands and telemetry to Home Assistant entities — valves, pumps, moisture sensors — over MQTT or the Home Assistant REST API (Home Assistant, n.d.-a; Home Assistant, n.d.-b).
+**What I would add.** A bridge from Smart-X commands and readings to Home Assistant devices — valves, pumps, moisture sensors — over MQTT or the Home Assistant REST API (Home Assistant, n.d.-a; Home Assistant, n.d.-b).
 
-**Why for Smart-X.** This matches real site automation. Part 2 overrides such as `OpenValve` and `StartPump` become physical or virtual actuators, while Progressive Disclosure still investigates gateway state (Nielsen, 2006).
+**Why.** That is closer to a real site. Part 2 overrides such as `OpenValve` and `StartPump` could drive a real or virtual actuator. Progressive disclosure would still be how I inspect gateway state (Nielsen, 2006).
 
-**.NET rationale.** MQTTnet is a .NET MQTT client and server library, and `HttpClient` is already the factory pattern used by the Blazor client (MQTTnet, n.d.; Microsoft, 2026d). MQTT itself is the OASIS publish/subscribe protocol widely used for device telemetry (OASIS, 2019). A hosted `BackgroundService` can bridge Home Assistant and `GatewayStore` in the same way as today’s queue consumer (Microsoft, 2026c). Security: long-lived tokens in a secret store, TLS on MQTT, and the same authorisation on override commands before anything is published. Scalability: MQTT decouples bursty device traffic from API threads, and sites can be separate topics. Performance: asynchronous publish and subscribe avoids blocking ingest. Workflow: a local Home Assistant plus the Docker Compose stack already used here can demo the bridge before any cloud IoT hub is added (Docker, n.d.-a).
+**How it fits .NET.** MQTTnet is a .NET MQTT client and server library, and `HttpClient` is already how the Blazor client calls the API (MQTTnet, n.d.; Microsoft, 2026d). MQTT is the OASIS publish/subscribe protocol used for device readings (OASIS, 2019). A hosted `BackgroundService` can bridge Home Assistant and `GatewayStore` the same way today’s queue consumer does (Microsoft, 2026c). I would keep long-lived tokens in a secret store, use TLS for MQTT, and check an override before publishing it. MQTT keeps bursty device traffic off the API threads, and each site can be its own topic. Publish and subscribe would be asynchronous so ingest is not blocked. A local Home Assistant plus the Docker Compose stack I already have can show the bridge before any cloud IoT hub (Docker, n.d.-a).
 
 ### 8.5 Deeper containerisation / orchestration (already started) {#containers}
 
-**Current.** `docker compose up --build` for the API and an nginx WebAssembly client (Docker, n.d.-a; nginx, n.d.).
+**What I have now.** `docker compose up --build` runs the API and an nginx client for the WebAssembly app (Docker, n.d.-a; nginx, n.d.).
 
-**Extend.** Azure Container Apps or Kubernetes for replicas, health probes, and separate scaling of the API and the static client, plus a volume or database for `App_Data` attachments (Microsoft, 2026a; Kubernetes, n.d.).
+**What I would add.** Azure Container Apps or Kubernetes, for more than one copy, health checks, and separate scaling of the API and the static client. I would also put `App_Data` attachments on a volume or in a database (Microsoft, 2026a; Kubernetes, n.d.).
 
-**Why for Smart-X.** Compose proves packaging. Orchestration matters once a cloud database and CI publish images continuously.
+**Why.** Compose shows that the app can be packaged. I would want orchestration once a cloud database and CI are publishing images all the time.
 
-**.NET rationale.** The existing multi-stage Dockerfiles use the official SDK and ASP.NET runtime images (Docker, n.d.-b). Container Apps speaks the platform’s health endpoints (Microsoft, 2026a). Security: non-root containers, a private registry, and managed identity to the database (Microsoft, 2025h). Scalability: scale API replicas independently of the static nginx client; scale on queue depth later. Performance: layer caching, and trimmed or ReadyToRun publish, for cold starts. Workflow: the same Compose files can graduate toward Container Apps or Kubernetes with little Dockerfile change, and CI can publish the images the workflows already build (GitHub, n.d.).
+**How it fits .NET.** The Dockerfiles I already wrote are multi-stage and use the official SDK and ASP.NET runtime images (Docker, n.d.-b). Container Apps can call the platform health endpoints (Microsoft, 2026a). I would run non-root containers, use a private registry, and use managed identity to reach the database (Microsoft, 2025h). The API can scale separately from the static nginx client, and later it could scale with queue depth. Layer caching, and a trimmed or ReadyToRun publish, help cold starts. The same Compose files can move toward Container Apps or Kubernetes with little Dockerfile change, and CI can publish the images those workflows already build (GitHub, n.d.).
 
 ### 8.6 Observability (OpenTelemetry + Application Insights or Grafana) {#observability}
 
-**Replace.** Console logs and manual curl health checks.
+**What I would replace.** Console logs and manual curl checks.
 
-**Add.** Traces for ingest, queue, and consumer; metrics for queue depth and MST recompute time; dashboards for the disconnect rate.
+**What I would add.** Traces for ingest, the queue, and the consumer. Metrics for queue depth and how long the MST takes to recompute. A dashboard for the disconnect rate.
 
-**Why for Smart-X.** Part 2 queue behaviour and Part 3 traversal cost become measurable in operations, not only in README curls.
+**Why.** I can only see Part 2 queue behaviour and Part 3 traversal cost in README curls today. I would want those numbers in operations.
 
-**.NET rationale.** OpenTelemetry’s .NET SDK, with ASP.NET Core instrumentation, is the usual way to export traces and metrics without rewriting controllers (OpenTelemetry, n.d.). Application Insights is one Azure Monitor exporter of that telemetry (Microsoft, 2025a). Security: scrub operator notes and attachment paths from spans, and restrict the dashboard. Scalability: sampling keeps high-ingest telemetry affordable; use metrics, not a full trace, for every packet. Performance: spans around BFS and MST show when those algorithms dominate CPU on a larger mesh (Cormen et al., 2022). Workflow: local counters first, then export to Azure Monitor without a second instrumentation pass.
+**How it fits .NET.** The OpenTelemetry .NET SDK, with ASP.NET Core instrumentation, is the usual way to export traces and metrics without rewriting controllers (OpenTelemetry, n.d.). Application Insights is one Azure Monitor exporter for that data (Microsoft, 2025a). I would strip operator notes and attachment paths from spans, and lock down the dashboard. Sampling keeps a high ingest rate affordable. I would record a metric, not a full trace, for every packet. Spans around BFS and the MST would show when those algorithms dominate CPU on a larger mesh (Cormen et al., 2022). I would start with local counters, then export to Azure Monitor without instrumenting the code a second time.
 
 ## 9. Conclusion {#conclusion}
 
-Smart-X progressed from telemetry with Progressive Disclosure (Nielsen, 2006), through a real-time command and alert pipeline built on queues, a stack, a hash set, and a hosted consumer (Microsoft, 2025l; Microsoft, 2026c), to a network-topology pillar: an AVL history tree (Adelson-Velsky and Landis, 1962), BFS and DFS (Cormen et al., 2022), and a Prim backbone (Prim, 1957). The Final PoE artefact is not a separate app. It is the same gateway, with trees, graphs, and the MST wired into the APIs and the `/mesh` dashboard, and with the Part 2 lecturer feedback addressed in the feedback ledger.
+I started with telemetry and progressive disclosure (Nielsen, 2006). I then built a command and alert pipeline on queues, a stack, a hash set, and a hosted consumer (Microsoft, 2025l; Microsoft, 2026c). Part 3 added an AVL history tree (Adelson-Velsky and Landis, 1962), BFS and DFS (Cormen et al., 2022), and a Prim backbone (Prim, 1957). The Final PoE is not a separate app. It is the same gateway. The trees, the graph, and the MST are in the APIs and on `/mesh`, and the Part 2 feedback is recorded in the feedback ledger.
 
 ## Appendix A — Key source map {#appendix-a}
 
@@ -391,9 +391,9 @@ Smart-X progressed from telemetry with Progressive Disclosure (Nielsen, 2006), t
 
 ## Appendix B — Rendering this report {#appendix-b}
 
-This file is the implementation report for the PoE. The repository does not contain a separate document titled “Implementation report”. The operator guide is `README.md`. The lecturer-feedback ledger is `docs/FEEDBACK-UPDATES.md`.
+This file is my implementation report for the PoE. The repository does not have a separate document titled “Implementation report”. The operator guide is `README.md`. The lecturer-feedback ledger is `docs/FEEDBACK-UPDATES.md`.
 
-The PDF committed beside this file is rendered with Pandoc and WeasyPrint. From the repository root:
+I render the PDF next to this file with Pandoc and WeasyPrint. From the repository root:
 
 ```bash
 pandoc docs/PROJECT-COMPLETION-REPORT.md \
