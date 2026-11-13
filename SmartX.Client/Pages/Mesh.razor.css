@@ -14,6 +14,72 @@
     margin-bottom: 0.85rem;
 }
 
+.mesh-callout {
+    margin: 0 0 1rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--sx-line);
+    border-radius: var(--sx-radius);
+    background: var(--sx-surface);
+}
+
+.mesh-callout-compact {
+    padding: 0.7rem 0.85rem;
+}
+
+.mesh-callout-title {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+    color: var(--sx-ink);
+}
+
+.mesh-callout p {
+    margin: 0 0 0.65rem;
+    color: var(--sx-lead);
+    line-height: 1.45;
+}
+
+.mesh-callout-compact p {
+    margin: 0;
+}
+
+.mesh-callout .sx-form-actions {
+    margin-top: 0.35rem;
+}
+
+.mesh-callout-down {
+    border-color: #f5c2c0;
+    background: #fff5f5;
+}
+
+.mesh-callout-down .mesh-callout-title {
+    color: var(--sx-critical);
+}
+
+.mesh-callout-error {
+    border-color: #f5c2c0;
+    background: #fff8f7;
+}
+
+.mesh-callout-error .mesh-callout-title,
+.mesh-callout-error p {
+    color: var(--sx-critical);
+}
+
+.mesh-callout-empty {
+    border-color: var(--sx-line-soft);
+    background: var(--sx-surface-muted);
+}
+
+.mesh-callout-loading {
+    border-style: dashed;
+    color: var(--sx-muted);
+}
+
+.mesh-callout-loading p {
+    margin: 0;
+    color: var(--sx-muted);
+}
+
 .mesh-range {
     margin-bottom: 1rem;
 }

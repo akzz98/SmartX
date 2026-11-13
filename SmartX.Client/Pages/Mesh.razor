@@ -19,12 +19,50 @@
         <button type="button" disabled="@busy" @onclick="ReloadMeshAsync">Refresh mesh</button>
     </div>
 
-    @if (loadError is not null)
+    @if (apiDown)
     {
-        <p class="mesh-error" role="alert">@loadError</p>
+        <aside class="mesh-callout mesh-callout-down" role="alert">
+            <h2 class="mesh-callout-title">Gateway unreachable</h2>
+            <p>
+                The topology dashboard cannot reach SmartX.Api at
+                <code>http://localhost:5015</code>. Start the API (http profile), then refresh.
+            </p>
+            <div class="sx-form-actions">
+                <button type="button" disabled="@busy" @onclick="ReloadMeshAsync">Retry connection</button>
+            </div>
+        </aside>
+    }
+    else if (loadError is not null)
+    {
+        <aside class="mesh-callout mesh-callout-error" role="alert">
+            <h2 class="mesh-callout-title">Topology load failed</h2>
+            <p>@loadError</p>
+            <div class="sx-form-actions">
+                <button type="button" disabled="@busy" @onclick="ReloadMeshAsync">Try again</button>
+            </div>
+        </aside>
+    }
+    else if (busy && topology is null)
+    {
+        <aside class="mesh-callout mesh-callout-loading" aria-live="polite">
+            <p>Loading mesh topology, traversal, and MST from the gateway…</p>
+        </aside>
+    }
+    else if (topology is { NodeCount: 0 })
+    {
+        <aside class="mesh-callout mesh-callout-empty" role="status">
+            <h2 class="mesh-callout-title">No mesh nodes yet</h2>
+            <p>
+                The gateway returned an empty graph. Restart SmartX.Api so
+                <code>MeshTopologySeeder</code> can rebuild the site mesh.
+            </p>
+            <div class="sx-form-actions">
+                <button type="button" disabled="@busy" @onclick="ReloadMeshAsync">Refresh mesh</button>
+            </div>
+        </aside>
     }
 
-    @if (topology is not null)
+    @if (topology is { NodeCount: > 0 })
     {
         <article class="mesh-panel">
             <h2>Active mesh</h2>
@@ -315,13 +353,38 @@
         </div>
     </form>
 
-    @if (string.IsNullOrWhiteSpace(selectedDeviceId))
+    @if (apiDown)
     {
-        <p class="mesh-hint">Select or track a sensor to load its historical log.</p>
+        <aside class="mesh-callout mesh-callout-down mesh-callout-compact" role="status">
+            <p>Historical AVL queries need the same API. Start SmartX.Api, then pick a sensor again.</p>
+        </aside>
+    }
+    else if (string.IsNullOrWhiteSpace(selectedDeviceId))
+    {
+        <aside class="mesh-callout mesh-callout-empty mesh-callout-compact" role="status">
+            <p>Select or track a sensor above to load its tree-backed historical log.</p>
+        </aside>
+    }
+    else if (historyError is not null)
+    {
+        <aside class="mesh-callout mesh-callout-error mesh-callout-compact" role="alert">
+            <p>@historyError</p>
+            <div class="sx-form-actions">
+                <button type="button" disabled="@busy" @onclick="UseFullTreeWindowAsync">Retry history query</button>
+            </div>
+        </aside>
     }
     else if (rangeResult is null && historyHint is not null)
     {
-        <p class="mesh-hint">@historyHint</p>
+        <aside class="mesh-callout mesh-callout-empty mesh-callout-compact" role="status">
+            <p>@historyHint</p>
+        </aside>
+    }
+    else if (busy && rangeResult is null && !string.IsNullOrWhiteSpace(selectedDeviceId))
+    {
+        <aside class="mesh-callout mesh-callout-loading mesh-callout-compact" aria-live="polite">
+            <p>Running AVL range query for @selectedDeviceId…</p>
+        </aside>
     }
 
     @if (rangeResult is not null)
@@ -355,7 +418,13 @@
 
             @if (rangeResult.Points.Count == 0)
             {
-                <p class="mesh-hint">No samples in this window.</p>
+                <aside class="mesh-callout mesh-callout-empty mesh-callout-compact" role="status">
+                    <p>
+                        No samples in this window for @rangeResult.DeviceId
+                        @(string.IsNullOrEmpty(rangeResult.MetricFilter) ? "" : $" ({rangeResult.MetricFilter})").
+                        Widen From/To or clear the metric filter.
+                    </p>
+                </aside>
             }
             else
             {
@@ -422,7 +491,9 @@
     private DateTime? toLocal;
     private TelemetryRangeHistoryResponse? rangeResult;
     private string? historyHint;
+    private string? historyError;
     private string? loadError;
+    private bool apiDown;
     private bool busy;
 
     private string SelectedMacSuffix
@@ -460,7 +531,8 @@
         }
         catch (HttpRequestException)
         {
-            loadError ??= "Gateway unreachable. Start SmartX.Api and reload.";
+            apiDown = true;
+            loadError = null;
         }
     }
 
@@ -468,6 +540,7 @@
     {
         busy = true;
         loadError = null;
+        apiDown = false;
         try
         {
             topology = await Http.GetFromJsonAsync<MeshTopologySnapshotResponse>(
@@ -485,7 +558,7 @@
 
             if (topology is null)
             {
-                loadError = "Gateway returned an empty mesh topology.";
+                loadError = "Gateway returned an empty mesh topology payload.";
                 layout = new Dictionary<string, Point>(StringComparer.OrdinalIgnoreCase);
                 parentByNode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 return;
@@ -508,7 +581,9 @@
             traversal = null;
             layout = new Dictionary<string, Point>(StringComparer.OrdinalIgnoreCase);
             parentByNode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            loadError = "Gateway unreachable. Start SmartX.Api and reload.";
+            apiDown = true;
+            loadError = null;
+            ClearRoute();
         }
         catch (Exception)
         {
@@ -518,7 +593,9 @@
             traversal = null;
             layout = new Dictionary<string, Point>(StringComparer.OrdinalIgnoreCase);
             parentByNode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            loadError = "Could not load the mesh topology.";
+            apiDown = false;
+            loadError = "Could not load the mesh topology. Check the API logs, then try again.";
+            ClearRoute();
         }
         finally
         {
@@ -726,7 +803,8 @@
     {
         if (string.IsNullOrWhiteSpace(selectedDeviceId))
         {
-            loadError = "Select a sensor first.";
+            historyHint = "Select or track a sensor first.";
+            historyError = null;
             return;
         }
 
@@ -738,11 +816,18 @@
     private async Task RunRangeQueryAsync()
     {
         historyHint = null;
+        historyError = null;
         rangeResult = null;
 
         if (string.IsNullOrWhiteSpace(selectedDeviceId))
         {
             historyHint = "Select or track a sensor to load its historical log.";
+            return;
+        }
+
+        if (apiDown)
+        {
+            historyError = "Gateway is unreachable — start SmartX.Api before querying history.";
             return;
         }
 
@@ -772,9 +857,10 @@
             }
 
             rangeResult = await Http.GetFromJsonAsync<TelemetryRangeHistoryResponse>(path, GatewayJson.Options);
+            apiDown = false;
             if (rangeResult is null)
             {
-                historyHint = "Gateway returned an empty range payload.";
+                historyError = "Gateway returned an empty range payload.";
             }
             else if (rangeResult.Points.Count == 0)
             {
@@ -783,11 +869,12 @@
         }
         catch (HttpRequestException)
         {
-            loadError = "Gateway unreachable. Start SmartX.Api and try again.";
+            apiDown = true;
+            historyError = "Gateway unreachable at http://localhost:5015 — start SmartX.Api and retry.";
         }
         catch (Exception)
         {
-            historyHint = "The AVL range query failed for the selected sensor.";
+            historyError = "The AVL range query failed for the selected sensor.";
         }
         finally
         {
