@@ -5,10 +5,8 @@
 <div class="rule"></div>
 <p class="meta"><strong>Alton Kholwani Muganda</strong><br>
 Student number ST10263456<br>
-Module code PROG7312<br>
-Module name: [PROG7312 – module name]<br>
+Module: PROG7312<br>
 POE</p>
-<p class="note">The repository records the module code PROG7312 in this report and in the feedback ledger. It does not record a module title, so the title is left as the placeholder above rather than guessed. Document date: 13 November 2026.</p>
 </div>
 
 <nav class="toc" id="contents">
@@ -403,6 +401,7 @@ pandoc docs/PROJECT-COMPLETION-REPORT.md \
   --to html5 \
   --standalone \
   --embed-resources \
+  --no-highlight \
   --metadata title="SmartX — Implementation report" \
   --css=docs/report.css \
   -o /tmp/smartx-report.html
