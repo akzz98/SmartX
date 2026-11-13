@@ -102,6 +102,10 @@ One `GatewayStore` singleton and one boot sequence seed the fleet, faults, queue
 
 ## 4. How to demonstrate the completed system
 
+**Recorded demo (YouTube):** [https://youtu.be/33HNgywCXoc](https://youtu.be/33HNgywCXoc)
+
+Walkthrough for live marking or self-check:
+
 1. Start API then client (`dotnet run` **or** `docker compose up --build`).  
 2. Open `http://localhost:5270` — all three pillars **Available**.  
 3. **Part 1:** `/telemetry` — 16 devices, exceptions, open a critical device.  
