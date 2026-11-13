@@ -43,6 +43,7 @@ Project Assets/
 !/docs/FEEDBACK-UPDATES.md
 !/docs/PROJECT-COMPLETION-REPORT.md
 !/docs/PROJECT-COMPLETION-REPORT.pdf
+!/docs/report.css
 # HTML is only an intermediate for PDF export
 /docs/*.html
 
