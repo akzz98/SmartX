@@ -41,8 +41,9 @@ Project Assets/
 # Ignore docs workspace noise; keep Final PoE submission artefacts tracked
 /docs/*
 !/docs/FEEDBACK-UPDATES.md
-!/docs/PROJECT-COMPLETION-REPORT.md
-!/docs/PROJECT-COMPLETION-REPORT.pdf
+!/docs/FEEDBACK-UPDATES.pdf
+!/docs/smartx_implementation_report.md
+!/docs/smartx_implementation_report.pdf
 # HTML is only an intermediate for PDF export
 /docs/*.html
 

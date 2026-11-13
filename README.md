@@ -6,6 +6,10 @@ This repository covers **Part 1 Task 2** (telemetry ingestion + Progressive Disc
 
 **Demo video (YouTube):** [https://youtu.be/33HNgywCXoc](https://youtu.be/33HNgywCXoc)
 
+**Implementation report (PDF):** [`docs/smartx_implementation_report.pdf`](docs/smartx_implementation_report.pdf)  
+**Implementation report (Markdown source):** [`docs/smartx_implementation_report.md`](docs/smartx_implementation_report.md)  
+**Feedback updates ledger:** [`docs/FEEDBACK-UPDATES.md`](docs/FEEDBACK-UPDATES.md)
+
 ## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) — for local `dotnet run` / Visual Studio
