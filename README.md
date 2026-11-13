@@ -6,8 +6,9 @@ This repository covers **Part 1 Task 2** (telemetry ingestion + Progressive Disc
 
 ## Requirements
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download) — for local `dotnet run` / Visual Studio
 - Visual Studio 2026 (or `dotnet` CLI)
+- **Optional:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Compose v2) — run API + client without installing the SDK on the host
 
 ## Restore, compile, run
 
@@ -59,6 +60,105 @@ curl http://localhost:5015/api/sensors/summary
 curl http://localhost:5015/api/stream/snapshot
 curl http://localhost:5015/api/mesh/topology
 ```
+
+## Docker — run API + client in containers
+
+Use this when you want the full Smart-X stack without starting two `dotnet run` terminals. Same host URLs as local development (`5015` / `5270`), so demos and curls stay unchanged.
+
+### What was added
+
+| File | Purpose |
+| --- | --- |
+| `docker-compose.yml` | Builds and runs `api` + `client` together |
+| `SmartX.Api/Dockerfile` | Multi-stage .NET 10 publish → `aspnet` runtime on port **8080** |
+| `SmartX.Api/appsettings.Docker.json` | CORS allow-list for `http://localhost:5270` |
+| `SmartX.Client/Dockerfile` | Publish Blazor WASM → serve static files with **nginx** |
+| `SmartX.Client/nginx.conf` | SPA fallback so `/mesh`, `/commands`, etc. work on refresh |
+| `.dockerignore` | Keeps `bin`/`obj`/.vs out of the build context |
+
+### Prerequisites
+
+1. Install and **start Docker Desktop** (Linux engine).
+2. Confirm the daemon is up:
+
+```bash
+docker version
+docker compose version
+```
+
+3. Free host ports **5015** and **5270** (stop any local `dotnet run` of Smart-X first).
+
+### Run (recommended)
+
+From the **repository root** (`SmartX/`):
+
+```bash
+docker compose up --build
+```
+
+First build downloads .NET/nginx base images and can take several minutes. When both services are healthy:
+
+1. Open the operator console: [http://localhost:5270](http://localhost:5270)
+2. Confirm the status strip shows **Gateway Online** and **16 devices**
+3. Smoke the three pillars: `/telemetry`, `/commands`, `/mesh`
+
+| Compose service | Inside container | On your machine |
+| --- | --- | --- |
+| `api` (`smartx-api`) | `http://+:8080` | [http://localhost:5015](http://localhost:5015) |
+| `client` (`smartx-client`) | nginx `:80` | [http://localhost:5270](http://localhost:5270) |
+
+**How the browser talks to the API:** the WASM app reads `ApiBaseUrl` from `wwwroot/appsettings.json` → `http://localhost:5015/`. That hits the **host-mapped** API port (not the Docker service name). CORS is enabled for `http://localhost:5270` via `appsettings.Docker.json` and `Cors__Origins__0` in Compose.
+
+### Useful Compose commands
+
+```bash
+# Build images and start in the foreground (logs in this terminal)
+docker compose up --build
+
+# Detached (background)
+docker compose up --build -d
+
+# Follow API logs
+docker compose logs -f api
+
+# Stop and remove containers
+docker compose down
+
+# Rebuild after code changes
+docker compose up --build --force-recreate
+```
+
+### Build images individually
+
+```bash
+# API only
+docker build -f SmartX.Api/Dockerfile -t smartx-api .
+docker run --rm -p 5015:8080 -e ASPNETCORE_ENVIRONMENT=Docker -e Cors__Origins__0=http://localhost:5270 smartx-api
+
+# Client only (needs API already on :5015 for a working UI)
+docker build -f SmartX.Client/Dockerfile -t smartx-client .
+docker run --rm -p 5270:80 smartx-client
+```
+
+### Health check (same as local)
+
+```bash
+curl http://localhost:5015/api/sensors/summary
+curl http://localhost:5015/api/stream/snapshot
+curl http://localhost:5015/api/mesh/topology
+```
+
+### Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| `failed to connect to the docker API` / pipe error | Start **Docker Desktop** and wait until it is running |
+| Port already in use | Stop local API/client (`Ctrl+C`) or change the left side of `ports:` in `docker-compose.yml` |
+| Client loads but **Gateway unreachable** | Confirm `api` is up (`docker compose ps` / `curl localhost:5015/api/sensors/summary`) |
+| `/mesh` refresh → nginx 404 | Ensure `SmartX.Client/nginx.conf` is copied in the client image (SPA `try_files`) |
+| CORS errors in browser console | Check `ASPNETCORE_ENVIRONMENT=Docker` and origin `http://localhost:5270` |
+
+Local `dotnet run` and Docker are alternatives — do not bind both to 5015/5270 at once.
 
 ## Architecture
 

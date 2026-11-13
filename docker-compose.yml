@@ -1,0 +1,26 @@
+# Smart-X Final PoE — API + Blazor WASM operator console
+# Browser uses host ports: client http://localhost:5270 → API http://localhost:5015
+services:
+  api:
+    build:
+      context: .
+      dockerfile: SmartX.Api/Dockerfile
+    container_name: smartx-api
+    ports:
+      - "5015:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      Cors__Origins__0: http://localhost:5270
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: SmartX.Client/Dockerfile
+    container_name: smartx-client
+    ports:
+      - "5270:80"
+    depends_on:
+      - api
+    restart: unless-stopped

@@ -1,0 +1,12 @@
+**/.git
+**/.vs
+**/bin
+**/obj
+**/App_Data
+**/CHECKLIST.md
+**/Project Assets
+**/*.user
+**/*.md
+!README.md
+**/agent-transcripts
+**/terminals
