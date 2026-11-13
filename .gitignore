@@ -38,8 +38,13 @@ Desktop.ini
 ## Course materials — keep local only
 Project Assets/
 /CHECKLIST.md
-/docs/
+# Ignore docs workspace noise; keep Final PoE submission artefacts tracked
+/docs/*
 !/docs/FEEDBACK-UPDATES.md
+!/docs/PROJECT-COMPLETION-REPORT.md
+!/docs/PROJECT-COMPLETION-REPORT.pdf
+# HTML is only an intermediate for PDF export
+/docs/*.html
 
 
 ## Runtime diagnostic uploads (photos, configs, hardware logs)
