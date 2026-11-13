@@ -21,7 +21,7 @@ POE</p>
 </ol>
 </li>
 <li><a href="#architecture">3. Architecture of the unified system</a></li>
-<li><a href="#demonstrate">4. How to demonstrate the completed system</a></li>
+<li><a href="#run">4. How to run the completed system</a></li>
 <li><a href="#feedback">5. Feedback-driven improvements</a></li>
 <li><a href="#challenges">6. Task 3 — architectural and algorithmic challenges</a>
 <ol>
@@ -54,7 +54,6 @@ POE</p>
 </li>
 <li><a href="#conclusion">9. Conclusion</a></li>
 <li><a href="#appendix-a">Appendix A — Key source map</a></li>
-<li><a href="#appendix-b">Appendix B — Rendering this report</a></li>
 <li><a href="#bibliography">Bibliography</a></li>
 </ol>
 </nav>
@@ -145,15 +144,51 @@ The Blazor WebAssembly client calls the API with `HttpClient` (Microsoft, 2026d)
 
 I can also start both with Docker Compose, on the same host ports (Docker, n.d.-a). There is no database. Restarting the API clears the in-memory store.
 
-## 4. How to demonstrate the completed system {#demonstrate}
+## 4. How to run the completed system {#run}
 
-1. Start the API, then the client, with `dotnet run` (Microsoft, 2026e) or with `docker compose up --build` (Docker, n.d.-a).
-2. Open `http://localhost:5270`. All three pillars say Available.
-3. Part 1: `/telemetry` shows 16 devices and the exceptions. Open a critical device.
-4. Part 2: `/commands` shows the FIFO peak, suggestions, unique keys, and issue or undo of an override.
-5. Part 3: `/mesh` shows the red down nodes, the tracked `sx-env-rack1-moist` MST path, the operator briefing (full mesh versus the MST saving), and the AVL history log.
+I run this from a clone of the repository. The three projects target `net10.0`, so I need the .NET 10 SDK. Docker is optional. There is no test project in the repo, so there is nothing to run with `dotnet test`.
 
-API smoke:
+### What I need {#run-need}
+
+- .NET 10 SDK, for `dotnet run` (Microsoft, 2026e).
+- Optional: Docker with Compose v2, if I want both services in containers instead of two terminals (Docker, n.d.-a).
+
+### Clone, restore, and build {#run-build}
+
+```bash
+git clone https://github.com/akzz98/SmartX.git
+cd SmartX
+dotnet restore SmartX.slnx
+dotnet build SmartX.slnx
+```
+
+`SmartX.slnx` builds `SmartX.Shared`, `SmartX.Api`, and `SmartX.Client`.
+
+### Config {#run-config}
+
+The client reads `ApiBaseUrl` from `SmartX.Client/wwwroot/appsettings.json`. Mine is `http://localhost:5015/`. The API allows the browser origin `http://localhost:5270` in `SmartX.Api/appsettings.Development.json` under `Cors:Origins`. I use the `http` launch profiles so that origin matches. If I serve the client from another origin, I add it to `Cors:Origins` and I change `ApiBaseUrl`.
+
+### Run the API, then the client {#run-local}
+
+I start the API first. If only the client is running, the status strip says the gateway is unreachable.
+
+Terminal 1:
+
+```bash
+dotnet run --project SmartX.Api --launch-profile http
+```
+
+That listens on `http://localhost:5015`.
+
+Terminal 2:
+
+```bash
+dotnet run --project SmartX.Client --launch-profile http
+```
+
+That listens on `http://localhost:5270`. I open `http://localhost:5270`. The console should show Gateway Online, 16 devices, and all three pillars Available. From there I use `/telemetry`, `/commands`, and `/mesh`.
+
+A quick check of the API:
 
 ```bash
 curl http://localhost:5015/api/sensors/summary
@@ -162,6 +197,20 @@ curl http://localhost:5015/api/mesh/topology
 curl http://localhost:5015/api/mesh/traversal
 curl http://localhost:5015/api/mesh/mst
 ```
+
+### Docker Compose, instead of two terminals {#run-docker}
+
+I do not run Compose and `dotnet run` at the same time. Both want ports 5015 and 5270. From the repository root:
+
+```bash
+docker compose up --build
+```
+
+The API container maps host port 5015 to port 8080. The client container maps host port 5270 to nginx on port 80. Compose sets `ASPNETCORE_ENVIRONMENT=Docker` and `Cors__Origins__0=http://localhost:5270`. CORS for that origin is also in `SmartX.Api/appsettings.Docker.json`. The browser still uses `ApiBaseUrl` (`http://localhost:5015/`), which is the host port, not the Docker service name. I open `http://localhost:5270` as before.
+
+### Stop {#run-stop}
+
+In each `dotnet run` terminal I press Ctrl+C. For Compose I press Ctrl+C, or I run `docker compose down` from the repository root. Restarting the API clears the in-memory store and loads the seeds again.
 
 ## 5. Feedback-driven improvements (Parts 1–2 → Final PoE) {#feedback}
 
@@ -256,7 +305,7 @@ Final PoE Task 3 was network topology and mesh routing. I did not start a new se
 - `/mesh` loads topology, the MST, traversal, and history asynchronously. If the API is down, empty, or in error, the page says so (Microsoft, 2025b).
 - The startup menu and the sidebar still show all three pillars. The README explains how to demo all three from one boot.
 
-**How to see it.** A fresh-restart smoke (checklist Stage 9.3) gets the summary, the stream snapshot and suggestions, and the mesh topology, traversal, and MST all at once.
+**How to see it.** After I restart the API, the summary, the stream snapshot and suggestions, and the mesh topology, traversal, and MST all succeed together.
 
 ## 7. Key learnings (linked to actual Smart-X tasks) {#learnings}
 
@@ -304,7 +353,7 @@ These are things I learned while building Parts 1 to 3 in one gateway. They come
 
 ### 7.5 What I would watch in a larger deployment {#production}
 
-In-memory state and boot seeds are right for PROG7312 marking. If I deployed this for a real site I would add durable storage, login, and more than one instance. I would still keep the same structures: indexed history, a graph snapshot, and an MST recomputed when the topology changes. Those directions are outlined in Stages 8.7–8.8.
+What I would add is durable storage, login, and more than one instance. I would still keep the same structures: indexed history, a graph snapshot, and an MST recomputed when the topology changes.
 
 ## 8. Recommended additional technologies {#technologies}
 
@@ -316,7 +365,7 @@ Smart-X already runs on my machine, and I can also start it with Docker Compose 
 
 **What I would add.** Stored sensors, packet history, commands, alerts, and mesh snapshots.
 
-**Why.** A marker can reset the demo by restarting today. A real hydroponics site needs history after a reboot, and across more than one API instance. Range queries would then read an index instead of scanning process memory.
+**Why.** Restarting the API clears the in-memory store. A hydroponics site that must keep history after a reboot, and across more than one API instance, needs a database. Range queries would then read an index instead of scanning process memory.
 
 **How it fits .NET.** EF Core and the Azure Cosmos DB SDK plug into the ASP.NET Core services I already use, without leaving C# (Microsoft, 2020; Microsoft, 2026h). Azure SQL Database is the managed relational option on the same platform (Microsoft, 2026i). For security I would use managed identity and Azure Key Vault, so the connection string is not in `appsettings`, and database roles instead of one shared administrator password (Microsoft, 2025h; Microsoft, 2026b). Several API copies can share one store. A Cosmos partition key such as `sensorId` or site matches a growing fleet (Microsoft, 2026h). Indexed range queries replace a linear scan of history, while the hot AVL and mesh graphs can stay in memory and write through. I would still use the same `dotnet` tools.
 
@@ -372,7 +421,7 @@ Smart-X already runs on my machine, and I can also start it with Docker Compose 
 
 ## 9. Conclusion {#conclusion}
 
-I started with telemetry and progressive disclosure (Nielsen, 2006). I then built a command and alert pipeline on queues, a stack, a hash set, and a hosted consumer (Microsoft, 2025l; Microsoft, 2026c). Part 3 added an AVL history tree (Adelson-Velsky and Landis, 1962), BFS and DFS (Cormen et al., 2022), and a Prim backbone (Prim, 1957). The Final PoE is not a separate app. It is the same gateway. The trees, the graph, and the MST are in the APIs and on `/mesh`, and the Part 2 feedback is recorded in the feedback ledger.
+I started with telemetry and progressive disclosure. I then built a command and alert pipeline on queues, a stack, a hash set, and a hosted consumer. Part 3 added an AVL history tree, BFS and DFS, and a Prim backbone. The Final PoE is not a separate app. It is the same gateway. The trees, the graph, and the MST are in the APIs and on `/mesh`, and the Part 2 feedback is recorded in the feedback ledger.
 
 ## Appendix A — Key source map {#appendix-a}
 
@@ -388,27 +437,6 @@ I started with telemetry and progressive disclosure (Nielsen, 2006). I then buil
 | Topology UI | `SmartX.Client/Pages/Mesh.razor` |
 | Feedback ledger | `docs/FEEDBACK-UPDATES.md` |
 | Operator how-to | `README.md` |
-
-## Appendix B — Rendering this report {#appendix-b}
-
-This file is my implementation report for the PoE. The repository does not have a separate document titled “Implementation report”. The operator guide is `README.md`. The lecturer-feedback ledger is `docs/FEEDBACK-UPDATES.md`.
-
-I render the PDF next to this file with Pandoc and WeasyPrint. From the repository root:
-
-```bash
-pandoc docs/PROJECT-COMPLETION-REPORT.md \
-  --from markdown \
-  --to html5 \
-  --standalone \
-  --embed-resources \
-  --no-highlight \
-  --metadata title="SmartX — Implementation report" \
-  --css=docs/report.css \
-  -o /tmp/smartx-report.html
-weasyprint /tmp/smartx-report.html docs/PROJECT-COMPLETION-REPORT.pdf
-```
-
-`docs/report.css` sets the cover page, the contents leaders, A4 margins, page numbers, and rules that keep headings with the following text and keep tables and code blocks from splitting across pages.
 
 ## Bibliography {#bibliography}
 
